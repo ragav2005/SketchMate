@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import Sidebar from "./_components/Sidebar";
-import OrgSidebar from "./_components/OrgSidebar/page";
+import OrgSidebar from "./_components/OrgSidebar";
 import Navbar from "./_components/Navbar";
 import useAuth from "@/lib/hooks/useAuth";
 import AuthLoading from "@/components/AuthLoading";
@@ -17,9 +17,11 @@ export interface Organization {
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
-  const { user, loading } = useAuth();
+  const [loading, setLoading] = useState<boolean>(false);
 
-  if (loading) {
+  const { user, loading: userLoading } = useAuth();
+
+  if (userLoading) {
     return <AuthLoading />;
   }
 
@@ -29,7 +31,11 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <main className="h-full">
-      <Sidebar selectedOrg={selectedOrg} />
+      <Sidebar
+        setSelectedOrg={setSelectedOrg}
+        organizations={organizations}
+        selectedOrg={selectedOrg}
+      />
       <div className="h-full pl-[60px]">
         <div className="flex h-full gap-x-3">
           <OrgSidebar
@@ -37,9 +43,16 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
             setOrganizations={setOrganizations}
             selectedOrg={selectedOrg}
             setSelectedOrg={setSelectedOrg}
+            loading={loading}
+            setLoading={setLoading}
           />
           <div className="h-full flex-1">
-            <Navbar />
+            <Navbar
+              organizations={organizations}
+              selectedOrg={selectedOrg}
+              setSelectedOrg={setSelectedOrg}
+              loading={loading}
+            />
             {children}
           </div>
         </div>

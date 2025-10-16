@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Check if user is already a member
+    // already member ?
     const { data: existingMember, error: existingMemberError } = await supabase
       .from("organization_members")
       .select("id")

@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { Organization } from "../../layout";
 import OrgSwitcher from "./OrgSwitcher";
 import { Button } from "@/components/ui/button";
@@ -13,17 +13,20 @@ import { createClient } from "@/lib/supabase/client";
 interface OrgSidebarProps {
   organizations: Organization[];
   selectedOrg: Organization | null;
+  loading: boolean;
   setOrganizations: React.Dispatch<React.SetStateAction<Organization[]>>;
   setSelectedOrg: React.Dispatch<React.SetStateAction<Organization | null>>;
+  setLoading: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const OrgSidebar = ({
   organizations,
   setOrganizations,
+  loading,
   selectedOrg,
   setSelectedOrg,
+  setLoading,
 }: OrgSidebarProps) => {
-  const [loading, setLoading] = useState<boolean>(false);
   const supabase = createClient();
   const searchParams = useSearchParams();
   const favorites = searchParams.get("favorites");
@@ -39,8 +42,10 @@ const OrgSidebar = ({
       try {
         setLoading(true);
         // first load
-        const { data, error } = await supabase.rpc("get_user_organizations");
-
+        const { data, error } = await supabase.rpc("get_user_organizations", {
+          input_user_id: user.id,
+        });
+        console.log(data, error);
         if (error) {
           console.error("Error loading organizations:", error);
           return;
@@ -56,7 +61,7 @@ const OrgSidebar = ({
         setLoading(false);
       }
 
-      // real time updates
+      // real time update
       channel = supabase
         .channel("org-changes")
         .on(
@@ -66,7 +71,10 @@ const OrgSidebar = ({
             try {
               setLoading(true);
               const { data, error } = await supabase.rpc(
-                "get_user_organizations"
+                "get_user_organizations",
+                {
+                  input_user_id: user.id,
+                }
               );
 
               if (error) {
@@ -96,7 +104,7 @@ const OrgSidebar = ({
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, [user?.id, supabase, setOrganizations, setSelectedOrg]);
+  }, [user?.id, supabase, setOrganizations, setSelectedOrg, setLoading]);
 
   return (
     <div className="hidden lg:flex flex-col space-y-6 w-[206px] pl-5 pt-5">
@@ -109,6 +117,7 @@ const OrgSidebar = ({
           className="h-auto w-auto hover:scale-[103%] transition"
         />
       </Link>
+
       {/* Organization switcher */}
       <OrgSwitcher
         loading={loading}

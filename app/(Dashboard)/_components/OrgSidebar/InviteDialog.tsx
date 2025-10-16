@@ -14,7 +14,7 @@ import { Organization } from "../../layout";
 import { DialogDescription } from "@radix-ui/react-dialog";
 
 type Props = {
-  org: Organization;
+  org: Organization | null;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 };
@@ -36,10 +36,8 @@ const InviteDialog = ({ org, open, onOpenChange }: Props) => {
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [inviteToken, setInviteToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  // guard to avoid duplicate generation (React strict mode or double renders)
   const generatingRef = useRef(false);
 
-  // Generate invite token when dialog opens
   useEffect(() => {
     if (isOpen && !inviteToken) {
       generateInviteLink();
@@ -48,17 +46,15 @@ const InviteDialog = ({ org, open, onOpenChange }: Props) => {
   }, [isOpen, inviteToken]);
 
   const generateInviteLink = async () => {
-    // Prevent re-entrancy / duplicate requests
     if (generatingRef.current) return;
     generatingRef.current = true;
     setIsGenerating(true);
     try {
-      console.log("1");
       const response = await fetch("/api/invites/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          organizationId: org.id,
+          organizationId: org?.id,
           maxUses: null,
           expiresInDays: 1,
         }),
@@ -115,7 +111,7 @@ const InviteDialog = ({ org, open, onOpenChange }: Props) => {
         body: JSON.stringify({
           email: mail,
           inviteLink,
-          organizationName: org.name,
+          organizationName: org?.name,
         }),
       });
 
@@ -138,13 +134,15 @@ const InviteDialog = ({ org, open, onOpenChange }: Props) => {
 
   return (
     <>
-      {!isControlled && <span onClick={() => setIsOpen(true)}>Delete</span>}
+      {!isControlled && (
+        <span onClick={() => setIsOpen(true)}>Invite User</span>
+      )}
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[425px] [&>button]:hover:bg-gray-100 [&>button]:transition-colors [&>button]:rounded-md [&>button]:p-1.5 [&>button]:text-gray-500 [&>button]:hover:text-gray-700 [&>button]:cursor-pointer">
           <form className="flex flex-col gap-5">
             <DialogHeader>
-              <DialogTitle>{`Invite member to ${org.name
+              <DialogTitle>{`Invite member to ${org?.name
                 .trim()
                 .replace(/\b\w/g, (l) => l.toUpperCase())}`}</DialogTitle>
               <DialogDescription className="text-sm text-muted-foreground mr-6">
