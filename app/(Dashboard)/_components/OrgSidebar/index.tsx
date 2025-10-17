@@ -113,6 +113,7 @@ const OrgSidebar = ({
           src="/logo.svg"
           width={60}
           height={60}
+          priority
           alt="SketchMate Logo"
           className="h-auto w-auto hover:scale-[103%] transition"
         />

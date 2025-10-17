@@ -23,6 +23,7 @@ const NewOrgButton = ({
   userId: string | undefined;
   isOrgSidebar: boolean;
 }) => {
+  const supabase = createClient();
   const [name, setName] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -43,8 +44,6 @@ const NewOrgButton = ({
     setIsLoading(true);
 
     try {
-      const supabase = createClient();
-
       const { error } = await supabase
         .from("organizations")
         .insert({
@@ -83,7 +82,7 @@ const NewOrgButton = ({
     >
       <DialogTrigger asChild>
         {isOrgSidebar ? (
-          <div className="w-full flex items-center gap-2 px-2 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+          <div className="w-full flex items-center gap-4 px-2 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
             <div className="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-lg flex items-center justify-center">
               <Plus className="w-4 h-4 text-gray-600 dark:text-gray-400" />
             </div>

@@ -59,7 +59,7 @@ const Navbar = ({
           }}
         >
           <Plus className=" h-4 w-4" />
-          Invite
+          Invite Members
         </Button>
       )}
       <Avatar>

@@ -1,5 +1,10 @@
 "use client";
-import React, { useState } from "react";
+import React, {
+  useState,
+  createContext,
+  Dispatch,
+  SetStateAction,
+} from "react";
 import Sidebar from "./_components/Sidebar";
 import OrgSidebar from "./_components/OrgSidebar";
 import Navbar from "./_components/Navbar";
@@ -13,6 +18,15 @@ export interface Organization {
   created_by: string;
   member_count: number;
 }
+
+export const DashboardContext = createContext<{
+  organizations: Organization[];
+  selectedOrg: Organization | null;
+  loading: boolean;
+  setOrganizations: Dispatch<SetStateAction<Organization[]>>;
+  setSelectedOrg: Dispatch<SetStateAction<Organization | null>>;
+  setLoading: Dispatch<SetStateAction<boolean>>;
+} | null>(null);
 
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -46,14 +60,26 @@ const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
             loading={loading}
             setLoading={setLoading}
           />
-          <div className="h-full flex-1">
+
+          <div className="flex-1 flex flex-col min-h-screen">
             <Navbar
               organizations={organizations}
               selectedOrg={selectedOrg}
               setSelectedOrg={setSelectedOrg}
               loading={loading}
             />
-            {children}
+            <DashboardContext.Provider
+              value={{
+                organizations,
+                selectedOrg,
+                loading,
+                setOrganizations,
+                setSelectedOrg,
+                setLoading,
+              }}
+            >
+              {children}
+            </DashboardContext.Provider>
           </div>
         </div>
       </div>
