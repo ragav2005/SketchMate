@@ -6,7 +6,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
 } from "./ui/dropdown-menu";
 import { Link2, PenLine, Trash2 } from "lucide-react";
 import { toast } from "sonner";

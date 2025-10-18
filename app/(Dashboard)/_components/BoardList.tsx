@@ -69,12 +69,49 @@ const BoardList = ({ orgId, query }: BoardListProps) => {
       .on(
         "postgres_changes",
         {
-          event: "*",
+          event: "INSERT",
           schema: "public",
           table: "boards",
           filter: `org_id=eq.${orgId}`,
         },
-        () => loadBoardsCallback()
+        (payload) => {
+          const newBoard = payload.new as Board;
+          setBoards((prev) => [newBoard, ...prev]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "boards",
+          filter: `org_id=eq.${orgId}`,
+        },
+        (payload) => {
+          const updatedBoard = payload.new as Board;
+          setBoards((prev) =>
+            prev.map((board) =>
+              board.id === updatedBoard.id ? updatedBoard : board
+            )
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "boards",
+        },
+        (payload) => {
+          const deletedBoardId = payload.old?.id;
+
+          if (deletedBoardId) {
+            setBoards((prev) =>
+              prev.filter((board) => board.id !== deletedBoardId)
+            );
+          }
+        }
       )
       .subscribe();
 
