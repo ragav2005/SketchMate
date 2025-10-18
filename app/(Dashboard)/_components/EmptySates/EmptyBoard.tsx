@@ -20,7 +20,7 @@ const EmptyBoard = ({ orgId }: { orgId: string | undefined }) => {
         Create your first board!
       </h2>
       <p className="text-muted-foreground text-sm mt-2 text-center">
-        Start by creating a board for you organization
+        Start by creating a board for your organization
       </p>
       <div className="mt-6">
         <NewBoardButton
@@ -29,6 +29,8 @@ const EmptyBoard = ({ orgId }: { orgId: string | undefined }) => {
           authorName={
             user?.user_metadata?.full_name || user?.user_metadata?.name
           }
+          isList={false}
+          disalbed={false}
         />
       </div>
     </div>

@@ -12,11 +12,15 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { Plus } from "lucide-react";
 
 interface Props {
   orgId: string | undefined;
   authorId: string | undefined;
   authorName: string | undefined;
+  isList: boolean;
+  disalbed: boolean;
 }
 
 const images = [
@@ -32,7 +36,13 @@ const images = [
   "/placeholders/10.svg",
 ];
 
-const NewBoardButton = ({ orgId, authorId, authorName }: Props) => {
+const NewBoardButton = ({
+  orgId,
+  authorId,
+  authorName,
+  isList,
+  disalbed,
+}: Props) => {
   const supabase = createClient();
   const [title, setTitle] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -43,6 +53,11 @@ const NewBoardButton = ({ orgId, authorId, authorName }: Props) => {
 
     if (!authorId) {
       toast.error("You must be logged in to create an board");
+      return;
+    }
+    if (!orgId) {
+      toast.error("Create an organization before creating a board.");
+      setIsOpen(false);
       return;
     }
 
@@ -89,9 +104,23 @@ const NewBoardButton = ({ orgId, authorId, authorName }: Props) => {
         }}
       >
         <DialogTrigger asChild>
-          <Button size="lg" className="cursor-pointer">
-            Create new board
-          </Button>
+          {isList ? (
+            <button
+              disabled={disalbed}
+              className={cn(
+                "col-span-1 aspect-[100/127] bg-blue-600 hover:bg-blue-800 rounded-lg flex flex-col items-center justify-center py-6 h-full w-full cursor-pointer",
+                disalbed && "opacity-75 cursor-not-allowed hover:bg-blue-600"
+              )}
+            >
+              <div />
+              <Plus className="h-12 w-12 text-white stroke-1" />
+              <p className="tetx-sm font-light text-white mt-2 ">New Board</p>
+            </button>
+          ) : (
+            <Button size="lg" className="cursor-pointer" disabled={disalbed}>
+              Create new board
+            </Button>
+          )}
         </DialogTrigger>
         <DialogContent className="sm:max-w-[425px] [&>button]:hover:bg-gray-100 [&>button]:transition-colors [&>button]:rounded-md [&>button]:p-1.5 [&>button]:text-gray-500 [&>button]:hover:text-gray-700 [&>button]:cursor-pointer">
           <form onSubmit={handleSubmit} className="flex flex-col gap-5">
