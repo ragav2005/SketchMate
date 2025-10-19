@@ -37,15 +37,6 @@ const BoardList = ({ orgId, query }: BoardListProps) => {
   const loadBoardsCallback = useCallback(async () => {
     try {
       setLoading(true);
-      const { data: boardsData, error: boardsError } = await supabase
-        .from("boards")
-        .select("*")
-        .eq("org_id", orgId);
-
-      if (boardsError) {
-        console.error("Error loading boards:", boardsError);
-        return;
-      }
 
       // fetch user favorites
       const { data: favoritesData, error: favoritesError } = await supabase
@@ -62,6 +53,28 @@ const BoardList = ({ orgId, query }: BoardListProps) => {
         favoritesData?.map((fav) => fav.board_id) || []
       );
 
+      let boardsQuery = supabase.from("boards").select("*").eq("org_id", orgId);
+
+      if (query.favorites) {
+        const favoriteIdsList = Array.from(favoriteIds);
+        if (favoriteIdsList.length === 0) {
+          setBoards([]);
+          setLoading(false);
+          return;
+        }
+
+        boardsQuery = boardsQuery.in("id", favoriteIdsList);
+      } else if (query.search) {
+        boardsQuery = boardsQuery.ilike("title", `%${query.search}%`);
+      }
+
+      const { data: boardsData, error: boardsError } = await boardsQuery;
+
+      if (boardsError) {
+        console.error("Error loading boards:", boardsError);
+        return;
+      }
+
       if (boardsData) {
         const boardsWithFavorites = boardsData.map((board) => ({
           ...board,
@@ -74,7 +87,7 @@ const BoardList = ({ orgId, query }: BoardListProps) => {
     } finally {
       setLoading(false);
     }
-  }, [orgId, supabase, user?.id]);
+  }, [orgId, supabase, user?.id, query.search, query.favorites]);
 
   // favorite callback
   const toggleFavorite = useCallback(
@@ -139,6 +152,16 @@ const BoardList = ({ orgId, query }: BoardListProps) => {
     // first load
     loadBoardsCallback();
 
+    // helper
+    const matchesFilter = (board: Board): boolean => {
+      if (query.favorites) {
+        return board.isFavorite;
+      } else if (query.search) {
+        return board.title.toLowerCase().includes(query.search.toLowerCase());
+      }
+      return true;
+    };
+
     // real-time updates
     const channel = supabase
       .channel(`boards:org:${orgId}`)
@@ -152,7 +175,12 @@ const BoardList = ({ orgId, query }: BoardListProps) => {
         },
         (payload) => {
           const newBoard = payload.new as Board;
-          setBoards((prev) => [newBoard, ...prev]);
+
+          const boardWithFavorite = { ...newBoard, isFavorite: false };
+
+          if (matchesFilter(boardWithFavorite)) {
+            setBoards((prev) => [boardWithFavorite, ...prev]);
+          }
         }
       )
       .on(
@@ -165,11 +193,23 @@ const BoardList = ({ orgId, query }: BoardListProps) => {
         },
         (payload) => {
           const updatedBoard = payload.new as Board;
-          setBoards((prev) =>
-            prev.map((board) =>
-              board.id === updatedBoard.id ? updatedBoard : board
-            )
-          );
+          setBoards((prev) => {
+            const boardWithCurrentFavorite = prev.find(
+              (b) => b.id === updatedBoard.id
+            ) || { isFavorite: false };
+            const updatedWithFavorite = {
+              ...updatedBoard,
+              isFavorite: boardWithCurrentFavorite.isFavorite,
+            };
+
+            if (!matchesFilter(updatedWithFavorite)) {
+              return prev.filter((board) => board.id !== updatedBoard.id);
+            }
+
+            return prev.map((board) =>
+              board.id === updatedBoard.id ? updatedWithFavorite : board
+            );
+          });
         }
       )
       .on(
@@ -194,7 +234,14 @@ const BoardList = ({ orgId, query }: BoardListProps) => {
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, [loadBoardsCallback, orgId, supabase, user?.id]);
+  }, [
+    loadBoardsCallback,
+    orgId,
+    supabase,
+    user?.id,
+    query.search,
+    query.favorites,
+  ]);
 
   // favorites effect
   useEffect(() => {
@@ -210,16 +257,41 @@ const BoardList = ({ orgId, query }: BoardListProps) => {
           table: "user_favorites",
           filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
+        async (payload) => {
           const favoritedBoardId = (payload.new as { board_id?: string })
             ?.board_id;
-          setBoards((prev) =>
-            prev.map((board) =>
+
+          setBoards((prev) => {
+            const updated = prev.map((board) =>
               board.id === favoritedBoardId
                 ? { ...board, isFavorite: true }
                 : board
-            )
-          );
+            );
+
+            if (
+              query.favorites &&
+              !updated.some((b) => b.id === favoritedBoardId)
+            ) {
+              return updated;
+            }
+
+            return updated;
+          });
+
+          if (query.favorites && favoritedBoardId) {
+            const { data: favoritedBoard } = await supabase
+              .from("boards")
+              .select("*")
+              .eq("id", favoritedBoardId)
+              .single();
+
+            if (favoritedBoard) {
+              setBoards((prev) => [
+                { ...favoritedBoard, isFavorite: true },
+                ...prev,
+              ]);
+            }
+          }
         }
       )
       .on(
@@ -239,12 +311,18 @@ const BoardList = ({ orgId, query }: BoardListProps) => {
             favoritesData?.map((fav) => fav.board_id) || []
           );
 
-          setBoards((prev) =>
-            prev.map((board) => ({
+          setBoards((prev) => {
+            const updated = prev.map((board) => ({
               ...board,
               isFavorite: currentFavoriteIds.has(board.id),
-            }))
-          );
+            }));
+
+            if (query.favorites) {
+              return updated.filter((board) => board.isFavorite);
+            }
+
+            return updated;
+          });
         }
       )
       .subscribe();
@@ -252,7 +330,7 @@ const BoardList = ({ orgId, query }: BoardListProps) => {
     return () => {
       if (favoritesChannel) supabase.removeChannel(favoritesChannel);
     };
-  }, [supabase, user?.id]);
+  }, [supabase, user?.id, query.favorites, orgId]);
 
   // loading
   if (loading) {
