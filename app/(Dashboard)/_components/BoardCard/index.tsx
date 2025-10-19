@@ -12,9 +12,11 @@ import { MoreHorizontal } from "lucide-react";
 const BoardCard = ({
   board,
   isFavorite,
+  onToggleFavorite,
 }: {
   board: Board;
   isFavorite: boolean;
+  onToggleFavorite?: () => Promise<void>;
 }) => {
   const { user } = useAuth();
   const authorLabel = user?.id === board.author_id ? "You" : board.author_name;
@@ -49,7 +51,7 @@ const BoardCard = ({
           title={board.title}
           authorLabel={authorLabel}
           createdAtLabel={createdAtlabel}
-          onClick={() => {}}
+          onToggleFavorite={onToggleFavorite}
           disabled={false}
         />
       </div>

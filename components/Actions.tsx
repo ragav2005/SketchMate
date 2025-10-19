@@ -7,7 +7,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "./ui/dropdown-menu";
-import { Link2, PenLine, Trash2 } from "lucide-react";
+import { Link2, PenLine, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import ConfirmModel from "./ConfirmModel";
@@ -83,9 +83,17 @@ const Actions = ({ children, side, sideOffset, id, title }: Props) => {
           <Button
             variant="ghost"
             className="px-3 py-5 cursor-pointer w-full text-sm justify-start font-normal text-red-500 hover:text-red-600 hover:bg-red-100/50"
-            // onClick={onDelete}
+            disabled={loadingDelete}
           >
-            <Trash2 className="h-4 w-4 mr-2" /> Delete
+            {loadingDelete ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deleting...
+              </>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
+              </>
+            )}
           </Button>
         </ConfirmModel>
       </DropdownMenuContent>

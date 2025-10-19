@@ -7,7 +7,7 @@ interface Props {
   title: string;
   authorLabel: string;
   createdAtLabel: string;
-  onClick: () => void;
+  onToggleFavorite?: () => Promise<void>;
   disabled: boolean;
 }
 
@@ -16,9 +16,19 @@ const Footer = ({
   title,
   authorLabel,
   createdAtLabel,
-  onClick,
+  onToggleFavorite,
   disabled,
 }: Props) => {
+  const handleToggleFavorite = async (
+    e: React.MouseEvent<HTMLButtonElement, MouseEvent>
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (onToggleFavorite) {
+      await onToggleFavorite();
+    }
+  };
+
   return (
     <div className="relative bg-white p-3">
       <p className="text-[13px] truncate max-w-[calc(100%-20px)] ">{title}</p>
@@ -27,9 +37,9 @@ const Footer = ({
       </p>
       <button
         disabled={disabled}
-        onClick={onClick}
+        onClick={handleToggleFavorite}
         className={cn(
-          "opacity-0 group-hover:opacity-100 transition-opacity absolute top-3 right-3 text-muted-foreground hover:text-blue-600 hover:cursor-pointer",
+          "opacity-100 group-hover:opacity-100 transition-opacity absolute top-3 right-3 text-muted-foreground hover:text-blue-600 hover:cursor-pointer",
           disabled && "cursor-not-allowed opacity-75"
         )}
       >
