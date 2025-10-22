@@ -18,8 +18,8 @@ interface Props {
   children: React.ReactNode;
   side?: DropdownMenuContentProps["side"];
   sideOffset?: DropdownMenuContentProps["sideOffset"];
-  id: string;
-  title: string;
+  id: string | undefined;
+  title: string | undefined;
 }
 
 const Actions = ({ children, side, sideOffset, id, title }: Props) => {
@@ -70,7 +70,7 @@ const Actions = ({ children, side, sideOffset, id, title }: Props) => {
         </DropdownMenuItem>
         <DropdownMenuItem
           className="p-3 cursor-pointer"
-          onClick={() => onOpen(id, title)}
+          onClick={() => id && title && onOpen(id, title)}
         >
           <PenLine className="h-4 w-4 mr-2" /> Rename
         </DropdownMenuItem>
