@@ -85,10 +85,6 @@ const Participants = ({ boardId }: { boardId: string }) => {
     };
   }, [boardId, supabase, user]);
 
-  useEffect(() => {
-    console.log(presentUsers);
-  }, [presentUsers]);
-
   if (loading) {
     return <Loading />;
   }
