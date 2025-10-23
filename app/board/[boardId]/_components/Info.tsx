@@ -9,7 +9,6 @@ import Image from "next/image";
 import Link from "next/link";
 
 interface InfoProps {
-  boardId: string;
   board: Board | null;
 }
 
@@ -23,11 +22,11 @@ const Info = ({ board }: InfoProps) => {
   return (
     <div className="absolute top-2 left-2 bg-white rounded-md px-1.5 h-12 flex items-center shadow-md">
       <Hint label="Go Home" side="bottom">
-        <Button variant="board" className="cursor-pointer">
-          <Link href="/">
+        <Link href="/">
+          <Button variant="board" className="cursor-pointer">
             <Image src="/logo.svg" alt="SketchMate" width={120} height={40} />
-          </Link>
-        </Button>
+          </Button>
+        </Link>
       </Hint>
       <TabSeparator />
       <Hint label="Edit Title" side="bottom">

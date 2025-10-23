@@ -1,3 +1,10 @@
+export type Cursor = {
+  userId: string;
+  x: number;
+  y: number;
+  name: string;
+};
+
 export type Color = {
   r: number;
   g: number;
