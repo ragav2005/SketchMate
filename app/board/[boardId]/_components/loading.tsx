@@ -7,7 +7,7 @@ export const Loading = () => {
   return (
     <main
       className="h-screen w-full relative bg-neutral-100 touch-none
-    flex items-center justify-center"
+    flex items-center justify-center z-1"
     >
       <div className="flex flex-col items-center gap-4 p-6">
         <Loader className="h-8 w-8 text-blue-500 animate-spin" />

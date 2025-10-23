@@ -17,7 +17,7 @@ const TabSeparator = () => {
   return <div className="text-neutral-300 px-1.5">|</div>;
 };
 
-const Info = ({ boardId, board }: InfoProps) => {
+const Info = ({ board }: InfoProps) => {
   const { onOpen } = useRenameModel();
 
   return (

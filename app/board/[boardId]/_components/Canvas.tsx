@@ -12,7 +12,7 @@ const Canvas = ({ boardId, board }: Props) => {
   return (
     <div className="h-screen w-full relative bg-neutral-100 touch-none">
       <Info boardId={boardId} board={board} />
-      <Participants />
+      <Participants boardId={boardId} />
       <Toolbar />
     </div>
   );
