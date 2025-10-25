@@ -37,6 +37,11 @@ export type Cursor = {
   name: string;
 };
 
+export type LayerSelection = {
+  userId: string;
+  layerId: string;
+};
+
 export type Color = {
   r: number;
   g: number;

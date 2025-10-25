@@ -4,6 +4,15 @@ import Info from "./Info";
 import Participants from "./Participants";
 import Toolbar from "./Toolbar";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useBoardStore } from "@/store/useBoardStore";
+import CursorsPresence from "./CursorPresence";
+import { RealtimeChannel } from "@supabase/supabase-js";
+import useAuth from "@/lib/hooks/useAuth";
+import { createClient } from "@/lib/supabase/client";
+import { pointerEventToCanvasPoint } from "@/lib/utils";
+import { toast } from "sonner";
+import LayerPreview from "./LayerPreview";
+import { dbLayersToClientLayers, layerTypeToString } from "@/lib/layer-utils";
 import {
   Camera,
   CanvasMode,
@@ -14,16 +23,8 @@ import {
   LayerType,
   Point,
   Color,
+  LayerSelection,
 } from "@/types/canvas";
-import { useBoardStore } from "@/store/useBoardStore";
-import CursorsPresence from "./CursorPresence";
-import { RealtimeChannel } from "@supabase/supabase-js";
-import useAuth from "@/lib/hooks/useAuth";
-import { createClient } from "@/lib/supabase/client";
-import { pointerEventToCanvasPoint } from "@/lib/utils";
-import { toast } from "sonner";
-import LayerPreview from "./LayerPreview";
-import { dbLayersToClientLayers, layerTypeToString } from "@/lib/layer-utils";
 
 interface Props {
   boardId: string;
@@ -48,6 +49,10 @@ const Canvas = ({ boardId, board }: Props) => {
   const [cursors, setCursors] = useState<Record<string, Cursor>>({});
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0 });
   const [layers, setLayers] = useState<ClientLayer[]>([]);
+  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+  const [selectedLayersByUser, setSelectedLayersByUser] = useState<
+    Record<string, string>
+  >({});
   // canvas states
   const [canvasState, setCanvasState] = useState<CanvasState>({
     mode: CanvasMode.None,
@@ -58,9 +63,9 @@ const Canvas = ({ boardId, board }: Props) => {
   const canUndo = useBoardStore((state) => state.undoStack.length > 0);
   const canRedo = useBoardStore((state) => state.redoStack.length > 0);
   const [lastUsedColor, setLastUsedColor] = useState<Color>({
-    r: 0,
-    g: 0,
-    b: 0,
+    r: 255,
+    g: 255,
+    b: 255,
   });
 
   const getLayers = useCallback(async () => {
@@ -144,7 +149,29 @@ const Canvas = ({ boardId, board }: Props) => {
         },
         (payload) => {
           if (payload.old?.board_id === boardId) {
-            setLayers((prev) => prev.filter((l) => l.id !== payload.old.id));
+            const deletedLayerId = payload.old.id;
+            setLayers((prev) => prev.filter((l) => l.id !== deletedLayerId));
+
+            if (selectedLayerId === deletedLayerId) {
+              setSelectedLayerId(null);
+              if (user) {
+                setSelectedLayersByUser((prev) => {
+                  const updated = { ...prev };
+                  delete updated[user.id];
+                  return updated;
+                });
+              }
+            }
+
+            setSelectedLayersByUser((prev) => {
+              const updated = { ...prev };
+              Object.keys(updated).forEach((userId) => {
+                if (updated[userId] === deletedLayerId) {
+                  delete updated[userId];
+                }
+              });
+              return updated;
+            });
           }
         }
       )
@@ -153,9 +180,9 @@ const Canvas = ({ boardId, board }: Props) => {
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, [getLayers, supabase, user, boardId]);
+  }, [getLayers, supabase, user, boardId, selectedLayerId]);
 
-  // cursors and live avatar effect
+  // cursors and live avatar and selection effect
   useEffect(() => {
     if (!user) return;
 
@@ -205,7 +232,32 @@ const Canvas = ({ boardId, board }: Props) => {
       }
     });
 
-    // user leave logic for both
+    // layer selection
+    channel.on("broadcast", { event: "layer-selected" }, (data) => {
+      const { userId, layerId } = data.payload as LayerSelection;
+
+      if (userId && userId !== user.id) {
+        setSelectedLayersByUser((prev) => ({
+          ...prev,
+          [userId]: layerId,
+        }));
+      }
+    });
+
+    // layer deselection
+    channel.on("broadcast", { event: "layer-deselected" }, (data) => {
+      const { userId } = data.payload;
+
+      if (userId && userId !== user.id) {
+        setSelectedLayersByUser((prev) => {
+          const updated = { ...prev };
+          delete updated[userId];
+          return updated;
+        });
+      }
+    });
+
+    // user leave logic
     channel.on("presence", { event: "leave" }, ({ leftPresences }) => {
       const leftUserIds = (leftPresences as unknown as PresentUser[]).map(
         (u) => u.id
@@ -221,6 +273,14 @@ const Canvas = ({ boardId, board }: Props) => {
           delete newCursors[id];
         }
         return newCursors;
+      });
+
+      setSelectedLayersByUser((prev) => {
+        const updated = { ...prev };
+        for (const id of leftUserIds) {
+          delete updated[id];
+        }
+        return updated;
       });
     });
 
@@ -314,6 +374,74 @@ const Canvas = ({ boardId, board }: Props) => {
     [user, layers.length, supabase, boardId, lastUsedColor]
   );
 
+  // handle layer selection
+  const onLayerPointerDown = useCallback(
+    (e: React.PointerEvent, layerId: string) => {
+      e.stopPropagation();
+
+      if (
+        canvasState.mode === CanvasMode.Inserting ||
+        canvasState.mode === CanvasMode.Pencil
+      ) {
+        return;
+      }
+      const point = pointerEventToCanvasPoint(e, camera);
+      setSelectedLayerId(layerId);
+
+      if (user) {
+        setSelectedLayersByUser((prev) => ({
+          ...prev,
+          [user.id]: layerId,
+        }));
+      }
+      // broadcast logic
+      if (channelRef.current && user) {
+        channelRef.current.send({
+          type: "broadcast",
+          event: "layer-selected",
+          payload: {
+            userId: user.id,
+            layerId: layerId,
+          } as LayerSelection,
+        });
+      }
+      setCanvasState({ mode: CanvasMode.Translating, current: point });
+    },
+    [camera, canvasState.mode, user, setCanvasState]
+  );
+
+  // handle layer deselection
+  const handleCanvasClick = useCallback(
+    (e: React.MouseEvent<SVGSVGElement>) => {
+      const target = e.target as SVGElement;
+      if (target.tagName === "svg" || target.tagName === "g") {
+        if (selectedLayerId !== null) {
+          setSelectedLayerId(null);
+
+          if (user) {
+            setSelectedLayersByUser((prev) => {
+              const updated = { ...prev };
+              delete updated[user.id];
+              return updated;
+            });
+          }
+
+          // broadcast deselection
+          if (channelRef.current && user) {
+            channelRef.current.send({
+              type: "broadcast",
+              event: "layer-deselected",
+              payload: {
+                userId: user.id,
+              },
+            });
+          }
+        }
+      }
+    },
+    [selectedLayerId, user]
+  );
+
   const onWheel = useCallback((e: React.WheelEvent) => {
     setCamera((camera) => ({
       x: camera.x - e.deltaX,
@@ -369,7 +497,8 @@ const Canvas = ({ boardId, board }: Props) => {
 
       if (canvasState.mode === CanvasMode.Inserting) {
         inserLayer(canvasState.layerType, point);
-      } else {
+      }
+      if (canvasState.mode !== CanvasMode.Translating) {
         setCanvasState({ mode: CanvasMode.None });
       }
     },
@@ -394,14 +523,17 @@ const Canvas = ({ boardId, board }: Props) => {
         onWheel={onWheel}
         onPointerLeave={onPointerLeave}
         onPointerUp={onPointerup}
+        onClick={handleCanvasClick}
       >
         <g style={{ transform: `translate(${camera.x}px, ${camera.y}px)` }}>
           {layers.map((layer) => (
             <LayerPreview
               key={layer.id}
               layer={layer}
-              onLayerPointerDown={() => {}}
-              selectionColor={"#000"}
+              onLayerPointerDown={onLayerPointerDown}
+              selectedByUserIds={Object.entries(selectedLayersByUser)
+                .filter(([, layerId]) => layerId === layer.id)
+                .map(([userId]) => userId)}
             />
           ))}
           <CursorsPresence cursors={cursors} currentUserId={user?.id} />
