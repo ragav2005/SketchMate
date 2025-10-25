@@ -1,4 +1,3 @@
-// app/board/[boardId]/_components/CursorsPresence.tsx
 "use client";
 
 import { memo } from "react";

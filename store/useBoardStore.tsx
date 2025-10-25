@@ -1,30 +1,19 @@
-import {
-  RectangleLayer,
-  EllipseLayer,
-  PathLayer,
-  TextLayer,
-  NoteLayer,
-} from "@/types/canvas";
+import { ClientLayer } from "@/types/canvas";
 import { create } from "zustand";
-
-type Layer = RectangleLayer | EllipseLayer | PathLayer | TextLayer | NoteLayer;
 
 type Action =
   | {
       type: "ADD";
-      layer: Layer;
-      layerId: string;
+      layer: ClientLayer;
     }
   | {
       type: "UPDATE";
-      layerId: string;
-      before: Layer;
-      after: Layer;
+      before: ClientLayer;
+      after: ClientLayer;
     }
   | {
       type: "DELETE";
-      layer: Layer;
-      layerId: string;
+      layer: ClientLayer;
     };
 
 export interface BoardState {
