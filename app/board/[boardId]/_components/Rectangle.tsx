@@ -3,10 +3,16 @@ import { ClientRectangleLayer } from "@/types/canvas";
 import React from "react";
 interface Props {
   layer: ClientRectangleLayer;
-  onPointerDown: (e: React.PointerEvent, id: string) => void;
   selectedByUserIds: string[];
+  isSelectedByUser: boolean;
+  onPointerDown: (e: React.PointerEvent, id: string) => void;
 }
-const Rectangle = ({ layer, onPointerDown, selectedByUserIds }: Props) => {
+const Rectangle = ({
+  layer,
+  onPointerDown,
+  selectedByUserIds,
+  isSelectedByUser,
+}: Props) => {
   const { x, y, width, height, fill } = layer;
 
   const getStrokeColor = () => {
@@ -26,7 +32,7 @@ const Rectangle = ({ layer, onPointerDown, selectedByUserIds }: Props) => {
         y={0}
         width={width}
         height={height}
-        stroke={getStrokeColor()}
+        stroke={isSelectedByUser ? "transparent" : getStrokeColor()}
         strokeWidth={2}
         fill={fill ? colorToCss(fill) : "#ccc"}
       ></rect>

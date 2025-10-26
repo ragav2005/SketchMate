@@ -3,11 +3,17 @@ import React, { memo } from "react";
 import Rectangle from "./Rectangle";
 interface Props {
   layer: ClientLayer;
-  onLayerPointerDown: (e: React.PointerEvent, layerId: string) => void;
   selectedByUserIds: string[];
+  isSelectedByUser: boolean;
+  onLayerPointerDown: (e: React.PointerEvent, layerId: string) => void;
 }
 const LayerPreview = memo(
-  ({ layer, onLayerPointerDown, selectedByUserIds }: Props) => {
+  ({
+    layer,
+    onLayerPointerDown,
+    selectedByUserIds,
+    isSelectedByUser,
+  }: Props) => {
     if (!layer) {
       return null;
     }
@@ -17,6 +23,7 @@ const LayerPreview = memo(
         return (
           <Rectangle
             layer={layer}
+            isSelectedByUser={isSelectedByUser}
             onPointerDown={onLayerPointerDown}
             selectedByUserIds={selectedByUserIds}
           />

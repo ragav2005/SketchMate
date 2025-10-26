@@ -13,6 +13,7 @@ import { pointerEventToCanvasPoint } from "@/lib/utils";
 import { toast } from "sonner";
 import LayerPreview from "./LayerPreview";
 import { dbLayersToClientLayers, layerTypeToString } from "@/lib/layer-utils";
+import { useSelectionBounds } from "@/lib/hooks/useSelectionBounds";
 import {
   Camera,
   CanvasMode,
@@ -23,8 +24,8 @@ import {
   LayerType,
   Point,
   Color,
-  LayerSelection,
 } from "@/types/canvas";
+import SelectionBox from "./SelectionBox";
 
 interface Props {
   boardId: string;
@@ -49,9 +50,9 @@ const Canvas = ({ boardId, board }: Props) => {
   const [cursors, setCursors] = useState<Record<string, Cursor>>({});
   const [camera, setCamera] = useState<Camera>({ x: 0, y: 0 });
   const [layers, setLayers] = useState<ClientLayer[]>([]);
-  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+  const [selectedLayerIds, setSelectedLayerIds] = useState<string[]>([]);
   const [selectedLayersByUser, setSelectedLayersByUser] = useState<
-    Record<string, string>
+    Record<string, string[]>
   >({});
   // canvas states
   const [canvasState, setCanvasState] = useState<CanvasState>({
@@ -63,11 +64,17 @@ const Canvas = ({ boardId, board }: Props) => {
   const canUndo = useBoardStore((state) => state.undoStack.length > 0);
   const canRedo = useBoardStore((state) => state.redoStack.length > 0);
   const [lastUsedColor, setLastUsedColor] = useState<Color>({
-    r: 255,
+    r: 0,
     g: 255,
     b: 255,
   });
 
+  // returns selected layer -helper
+  const getSelectedLayers = useCallback(() => {
+    return layers.filter((layer) => selectedLayerIds.includes(layer.id));
+  }, [layers, selectedLayerIds]);
+
+  // getlayer db fetch
   const getLayers = useCallback(async () => {
     if (!user) return;
 
@@ -152,21 +159,19 @@ const Canvas = ({ boardId, board }: Props) => {
             const deletedLayerId = payload.old.id;
             setLayers((prev) => prev.filter((l) => l.id !== deletedLayerId));
 
-            if (selectedLayerId === deletedLayerId) {
-              setSelectedLayerId(null);
-              if (user) {
-                setSelectedLayersByUser((prev) => {
-                  const updated = { ...prev };
-                  delete updated[user.id];
-                  return updated;
-                });
-              }
+            if (selectedLayerIds.includes(deletedLayerId)) {
+              setSelectedLayerIds((prev) =>
+                prev.filter((id) => id !== deletedLayerId)
+              );
             }
 
             setSelectedLayersByUser((prev) => {
               const updated = { ...prev };
               Object.keys(updated).forEach((userId) => {
-                if (updated[userId] === deletedLayerId) {
+                updated[userId] = updated[userId].filter(
+                  (id) => id !== deletedLayerId
+                );
+                if (updated[userId].length === 0) {
                   delete updated[userId];
                 }
               });
@@ -180,7 +185,7 @@ const Canvas = ({ boardId, board }: Props) => {
     return () => {
       if (channel) supabase.removeChannel(channel);
     };
-  }, [getLayers, supabase, user, boardId, selectedLayerId]);
+  }, [getLayers, supabase, user, boardId, selectedLayerIds]);
 
   // cursors and live avatar and selection effect
   useEffect(() => {
@@ -233,19 +238,19 @@ const Canvas = ({ boardId, board }: Props) => {
     });
 
     // layer selection
-    channel.on("broadcast", { event: "layer-selected" }, (data) => {
-      const { userId, layerId } = data.payload as LayerSelection;
+    channel.on("broadcast", { event: "layers-selected" }, (data) => {
+      const { userId, layerIds } = data.payload;
 
       if (userId && userId !== user.id) {
         setSelectedLayersByUser((prev) => ({
           ...prev,
-          [userId]: layerId,
+          [userId]: layerIds,
         }));
       }
     });
 
     // layer deselection
-    channel.on("broadcast", { event: "layer-deselected" }, (data) => {
+    channel.on("broadcast", { event: "layers-deselected" }, (data) => {
       const { userId } = data.payload;
 
       if (userId && userId !== user.id) {
@@ -386,28 +391,48 @@ const Canvas = ({ boardId, board }: Props) => {
         return;
       }
       const point = pointerEventToCanvasPoint(e, camera);
-      setSelectedLayerId(layerId);
+
+      const isAlreadySelected = selectedLayerIds.includes(layerId);
+      const updatedSelection = isAlreadySelected ? [] : [layerId];
+
+      setSelectedLayerIds(updatedSelection);
 
       if (user) {
-        setSelectedLayersByUser((prev) => ({
-          ...prev,
-          [user.id]: layerId,
+        setSelectedLayersByUser((prevUsers) => ({
+          ...prevUsers,
+          [user.id]: updatedSelection,
         }));
       }
-      // broadcast logic
+
+      // broadcast updated selection
       if (channelRef.current && user) {
-        channelRef.current.send({
-          type: "broadcast",
-          event: "layer-selected",
-          payload: {
-            userId: user.id,
-            layerId: layerId,
-          } as LayerSelection,
-        });
+        if (updatedSelection.length > 0) {
+          channelRef.current.send({
+            type: "broadcast",
+            event: "layers-selected",
+            payload: {
+              userId: user.id,
+              layerIds: updatedSelection,
+            },
+          });
+        } else {
+          channelRef.current.send({
+            type: "broadcast",
+            event: "layers-deselected",
+            payload: {
+              userId: user.id,
+            },
+          });
+        }
       }
-      setCanvasState({ mode: CanvasMode.Translating, current: point });
+
+      if (!isAlreadySelected) {
+        setCanvasState({ mode: CanvasMode.Translating, current: point });
+      } else {
+        setCanvasState({ mode: CanvasMode.None });
+      }
     },
-    [camera, canvasState.mode, user, setCanvasState]
+    [canvasState.mode, camera, selectedLayerIds, user]
   );
 
   // handle layer deselection
@@ -415,8 +440,8 @@ const Canvas = ({ boardId, board }: Props) => {
     (e: React.MouseEvent<SVGSVGElement>) => {
       const target = e.target as SVGElement;
       if (target.tagName === "svg" || target.tagName === "g") {
-        if (selectedLayerId !== null) {
-          setSelectedLayerId(null);
+        if (selectedLayerIds.length > 0) {
+          setSelectedLayerIds([]);
 
           if (user) {
             setSelectedLayersByUser((prev) => {
@@ -430,7 +455,7 @@ const Canvas = ({ boardId, board }: Props) => {
           if (channelRef.current && user) {
             channelRef.current.send({
               type: "broadcast",
-              event: "layer-deselected",
+              event: "layers-deselected",
               payload: {
                 userId: user.id,
               },
@@ -439,7 +464,7 @@ const Canvas = ({ boardId, board }: Props) => {
         }
       }
     },
-    [selectedLayerId, user]
+    [selectedLayerIds, user]
   );
 
   const onWheel = useCallback((e: React.WheelEvent) => {
@@ -493,7 +518,6 @@ const Canvas = ({ boardId, board }: Props) => {
   const onPointerup = useCallback(
     (e: React.PointerEvent) => {
       const point = pointerEventToCanvasPoint(e, camera);
-      console.log({ point, mode: canvasState.mode });
 
       if (canvasState.mode === CanvasMode.Inserting) {
         inserLayer(canvasState.layerType, point);
@@ -530,12 +554,19 @@ const Canvas = ({ boardId, board }: Props) => {
             <LayerPreview
               key={layer.id}
               layer={layer}
+              isSelectedByUser={selectedLayerIds.includes(layer.id)}
               onLayerPointerDown={onLayerPointerDown}
               selectedByUserIds={Object.entries(selectedLayersByUser)
-                .filter(([, layerId]) => layerId === layer.id)
+                .filter(([, layerIds]) => layerIds.includes(layer.id))
                 .map(([userId]) => userId)}
             />
           ))}
+          <SelectionBox
+            selectedLayers={getSelectedLayers()}
+            bounds={useSelectionBounds(getSelectedLayers())}
+            onResizeHandlePointerDown={() => {}}
+          />
+
           <CursorsPresence cursors={cursors} currentUserId={user?.id} />
         </g>
       </svg>
