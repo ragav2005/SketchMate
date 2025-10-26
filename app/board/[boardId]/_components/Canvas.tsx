@@ -9,11 +9,12 @@ import CursorsPresence from "./CursorPresence";
 import { RealtimeChannel } from "@supabase/supabase-js";
 import useAuth from "@/lib/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
-import { pointerEventToCanvasPoint } from "@/lib/utils";
+import { pointerEventToCanvasPoint, resizeBounds } from "@/lib/utils";
 import { toast } from "sonner";
 import LayerPreview from "./LayerPreview";
 import { dbLayersToClientLayers, layerTypeToString } from "@/lib/layer-utils";
 import { useSelectionBounds } from "@/lib/hooks/useSelectionBounds";
+import SelectionBox from "./SelectionBox";
 import {
   Camera,
   CanvasMode,
@@ -24,8 +25,9 @@ import {
   LayerType,
   Point,
   Color,
+  Side,
+  XYWH,
 } from "@/types/canvas";
-import SelectionBox from "./SelectionBox";
 
 interface Props {
   boardId: string;
@@ -73,6 +75,14 @@ const Canvas = ({ boardId, board }: Props) => {
   const getSelectedLayers = useCallback(() => {
     return layers.filter((layer) => selectedLayerIds.includes(layer.id));
   }, [layers, selectedLayerIds]);
+
+  // returns selected layer with id -helper
+  const getLayerById = useCallback(
+    (id: string) => {
+      return layers.find((layer) => layer.id === id);
+    },
+    [layers]
+  );
 
   // getlayer db fetch
   const getLayers = useCallback(async () => {
@@ -140,6 +150,11 @@ const Canvas = ({ boardId, board }: Props) => {
             const updatedLayer = dbLayersToClientLayers([
               payload.new as DBLayer,
             ])[0];
+
+            if (selectedLayerIds.includes(updatedLayer.id)) {
+              return;
+            }
+
             setLayers((prev) =>
               prev.map((l) => (l.id === updatedLayer.id ? updatedLayer : l))
             );
@@ -379,6 +394,65 @@ const Canvas = ({ boardId, board }: Props) => {
     [user, layers.length, supabase, boardId, lastUsedColor]
   );
 
+  // resize layer with optimistic updates
+  const resizeLayer = useCallback(
+    async (point: Point) => {
+      if (canvasState.mode !== CanvasMode.Resizing) return;
+
+      const bounds = resizeBounds(
+        canvasState.initialBounds,
+        canvasState.corner,
+        point
+      );
+
+      const layerId = selectedLayerIds[0];
+      if (!layerId) return;
+
+      const updatedLayer = {
+        ...getLayerById(layerId)!,
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+      };
+
+      setLayers((prev) =>
+        prev.map((layer) => (layer.id === layerId ? updatedLayer : layer))
+      );
+
+      try {
+        const { error } = await supabase
+          .from("layers")
+          .update({
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+          })
+          .eq("id", layerId);
+
+        if (error) {
+          console.error("Failed to resize layer:", error);
+          setLayers((prev) =>
+            prev.map((layer) =>
+              layer.id === layerId ? getLayerById(layerId)! : layer
+            )
+          );
+          toast.error("Failed to resize layer");
+        }
+      } catch (err) {
+        console.error("Failed to resize layer:", err);
+        setLayers((prev) =>
+          prev.map((layer) =>
+            layer.id === layerId ? getLayerById(layerId)! : layer
+          )
+        );
+        toast.error("Failed to resize layer");
+      }
+    },
+    [canvasState, getLayerById, selectedLayerIds, supabase]
+  );
+
   // handle layer selection
   const onLayerPointerDown = useCallback(
     (e: React.PointerEvent, layerId: string) => {
@@ -477,8 +551,13 @@ const Canvas = ({ boardId, board }: Props) => {
   // cursor move event handler
   const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
+      const current = pointerEventToCanvasPoint(e, camera);
+
+      // resize
+      if (canvasState.mode === CanvasMode.Resizing) resizeLayer(current);
+
+      // cursor
       if (channelRef.current && user) {
-        const current = pointerEventToCanvasPoint(e, camera);
         channelRef.current.send({
           type: "broadcast",
           event: "cursor-pos",
@@ -494,7 +573,7 @@ const Canvas = ({ boardId, board }: Props) => {
         });
       }
     },
-    [camera, user]
+    [camera, canvasState.mode, resizeLayer, user]
   );
 
   const onPointerLeave = useCallback(() => {
@@ -527,6 +606,14 @@ const Canvas = ({ boardId, board }: Props) => {
       }
     },
     [camera, canvasState, inserLayer]
+  );
+
+  //resize selector click handler
+  const onResizeHandlePointerDown = useCallback(
+    (corner: Side, initialBounds: XYWH) => {
+      setCanvasState({ mode: CanvasMode.Resizing, corner, initialBounds });
+    },
+    []
   );
 
   return (
@@ -564,7 +651,7 @@ const Canvas = ({ boardId, board }: Props) => {
           <SelectionBox
             selectedLayers={getSelectedLayers()}
             bounds={useSelectionBounds(getSelectedLayers())}
-            onResizeHandlePointerDown={() => {}}
+            onResizeHandlePointerDown={onResizeHandlePointerDown}
           />
 
           <CursorsPresence cursors={cursors} currentUserId={user?.id} />
