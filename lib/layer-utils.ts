@@ -20,6 +20,7 @@ export function dbLayerToClientLayer(dbLayer: DBLayer): ClientLayer {
     fill: dbLayer.fill,
     value: dbLayer.value,
     metadata: dbLayer.metadata,
+    zIndex: dbLayer.z_index,
     createdAt: dbLayer.created_at,
     updatedAt: dbLayer.updated_at,
   };

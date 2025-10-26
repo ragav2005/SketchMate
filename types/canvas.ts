@@ -79,6 +79,7 @@ export type DBRectangleLayer = {
   fill: Color;
   value: string | null;
   metadata: Metadata | null;
+  z_index: number;
   created_at: string;
   updated_at: string;
 };
@@ -96,6 +97,7 @@ export type DBEllipseLayer = {
   fill: Color;
   value: string | null;
   metadata: Metadata | null;
+  z_index: number;
   created_at: string;
   updated_at: string;
 };
@@ -113,6 +115,7 @@ export type DBPathLayer = {
   fill: Color;
   value: string | null;
   metadata: { points: number[][] } & Metadata;
+  z_index: number;
   created_at: string;
   updated_at: string;
 };
@@ -130,6 +133,7 @@ export type DBTextLayer = {
   fill: Color;
   value: string | null;
   metadata: Metadata | null;
+  z_index: number;
   created_at: string;
   updated_at: string;
 };
@@ -147,6 +151,7 @@ export type DBNoteLayer = {
   fill: Color;
   value: string | null;
   metadata: Metadata | null;
+  z_index: number;
   created_at: string;
   updated_at: string;
 };
@@ -172,6 +177,7 @@ export type ClientRectangleLayer = {
   fill: Color;
   value?: string | null;
   metadata?: Metadata | null;
+  zIndex: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -189,6 +195,7 @@ export type ClientEllipseLayer = {
   fill: Color;
   value?: string | null;
   metadata?: Metadata | null;
+  zIndex: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -207,6 +214,7 @@ export type ClientPathLayer = {
   points: number[][];
   value?: string | null;
   metadata?: Metadata | null;
+  zIndex: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -224,6 +232,7 @@ export type ClientTextLayer = {
   fill: Color;
   value?: string | null;
   metadata?: Metadata | null;
+  zIndex: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -241,6 +250,7 @@ export type ClientNoteLayer = {
   fill: Color;
   value?: string | null;
   metadata?: Metadata | null;
+  zIndex: number;
   createdAt: string;
   updatedAt: string;
 };

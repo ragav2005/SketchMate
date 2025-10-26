@@ -28,7 +28,7 @@ import {
   Side,
   XYWH,
 } from "@/types/canvas";
-import { get } from "http";
+import SelectionTools from "./SelectionTools";
 
 interface Props {
   boardId: string;
@@ -102,7 +102,10 @@ const Canvas = ({ boardId, board }: Props) => {
       }
       if (dbLayers) {
         const clientLayers = dbLayersToClientLayers(dbLayers);
-        setLayers(clientLayers);
+        const sortedLayers = clientLayers.sort(
+          (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
+        );
+        setLayers(sortedLayers);
       }
     } catch (err) {
       console.log("Error loading Layers", err);
@@ -134,7 +137,8 @@ const Canvas = ({ boardId, board }: Props) => {
               if (prev.some((l) => l.id === newLayer.id)) {
                 return prev;
               }
-              return [...prev, newLayer];
+              const updated = [...prev, newLayer];
+              return updated.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
             });
           }
         }
@@ -157,9 +161,12 @@ const Canvas = ({ boardId, board }: Props) => {
               return;
             }
 
-            setLayers((prev) =>
-              prev.map((l) => (l.id === updatedLayer.id ? updatedLayer : l))
-            );
+            setLayers((prev) => {
+              const updated = prev.map((l) =>
+                l.id === updatedLayer.id ? updatedLayer : l
+              );
+              return updated.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
+            });
           }
         }
       )
@@ -169,32 +176,46 @@ const Canvas = ({ boardId, board }: Props) => {
           event: "DELETE",
           schema: "public",
           table: "layers",
-          filter: `board_id=eq.${boardId}`,
         },
         (payload) => {
-          if (payload.old?.board_id === boardId) {
-            const deletedLayerId = payload.old.id;
-            setLayers((prev) => prev.filter((l) => l.id !== deletedLayerId));
+          if (!payload.old) {
+            return;
+          }
 
-            if (selectedLayerIds.includes(deletedLayerId)) {
-              setSelectedLayerIds((prev) =>
-                prev.filter((id) => id !== deletedLayerId)
-              );
+          const deletedLayerId = payload.old.id;
+          setLayers((prev) => {
+            const layerToDelete = prev.find((l) => l.id === deletedLayerId);
+
+            if (!layerToDelete) {
+              return prev;
             }
 
-            setSelectedLayersByUser((prev) => {
-              const updated = { ...prev };
-              Object.keys(updated).forEach((userId) => {
-                updated[userId] = updated[userId].filter(
-                  (id) => id !== deletedLayerId
-                );
-                if (updated[userId].length === 0) {
-                  delete updated[userId];
-                }
-              });
-              return updated;
-            });
+            if (layerToDelete.boardId !== boardId) {
+              return prev;
+            }
+
+            const updated = prev.filter((l) => l.id !== deletedLayerId);
+            return updated;
+          });
+
+          if (selectedLayerIds.includes(deletedLayerId)) {
+            setSelectedLayerIds((prev) =>
+              prev.filter((id) => id !== deletedLayerId)
+            );
           }
+
+          setSelectedLayersByUser((prev) => {
+            const updated = { ...prev };
+            Object.keys(updated).forEach((userId) => {
+              updated[userId] = updated[userId].filter(
+                (id) => id !== deletedLayerId
+              );
+              if (updated[userId].length === 0) {
+                delete updated[userId];
+              }
+            });
+            return updated;
+          });
         }
       )
       .subscribe();
@@ -366,6 +387,8 @@ const Canvas = ({ boardId, board }: Props) => {
         return;
       }
 
+      if (canvasState.mode !== CanvasMode.Inserting) return;
+
       try {
         const { error } = await supabase
           .from("layers")
@@ -388,12 +411,13 @@ const Canvas = ({ boardId, board }: Props) => {
           toast.error("Failed to insert layer.");
           return;
         }
+
         setCanvasState({ mode: CanvasMode.None });
       } catch (err) {
         toast.error(`Failed to insert layer : ${err}`);
       }
     },
-    [user, layers.length, supabase, boardId, lastUsedColor]
+    [user, layers, canvasState.mode, boardId, lastUsedColor, supabase]
   );
 
   // resize layer
@@ -567,6 +591,8 @@ const Canvas = ({ boardId, board }: Props) => {
   // handle layer deselection
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
+      if (canvasState.mode === CanvasMode.Inserting) return;
+
       const target = e.target as SVGElement;
       if (target.tagName === "svg" || target.tagName === "g") {
         if (selectedLayerIds.length > 0) {
@@ -593,7 +619,7 @@ const Canvas = ({ boardId, board }: Props) => {
         }
       }
     },
-    [selectedLayerIds, user]
+    [selectedLayerIds, user, canvasState]
   );
 
   const onWheel = useCallback((e: React.WheelEvent) => {
@@ -724,6 +750,14 @@ const Canvas = ({ boardId, board }: Props) => {
         canUndo={canUndo}
         redo={redo}
         canRedo={canRedo}
+      />
+      <SelectionTools
+        camera={camera}
+        getLayerById={getLayerById}
+        setLayers={setLayers}
+        setLastUsedColor={setLastUsedColor}
+        selectedLayers={getSelectedLayers()}
+        selectionBounds={useSelectionBounds(getSelectedLayers())}
       />
       <svg
         className="h-[100vh] w-[100vw]"

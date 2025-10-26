@@ -24,8 +24,8 @@ interface Props {
 const Toolbar = ({
   canvasState,
   setCanvasState,
-  undo,
-  redo,
+  // undo,
+  // redo,
   canUndo,
   canRedo,
 }: Props) => {
