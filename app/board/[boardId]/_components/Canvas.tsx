@@ -28,6 +28,7 @@ import {
   Side,
   XYWH,
 } from "@/types/canvas";
+import { get } from "http";
 
 interface Props {
   boardId: string;
@@ -45,7 +46,8 @@ const MAX_LAYERS = 100;
 const Canvas = ({ boardId, board }: Props) => {
   const { user } = useAuth();
   const supabase = createClient();
-
+  const dragStartPointRef = useRef<Point | null>(null);
+  const hasDraggedRef = useRef(false);
   // realtime states
   const channelRef = useRef<RealtimeChannel | null>(null);
   const [presentUsers, setPresentUsers] = useState<PresentUser[]>([]);
@@ -394,7 +396,7 @@ const Canvas = ({ boardId, board }: Props) => {
     [user, layers.length, supabase, boardId, lastUsedColor]
   );
 
-  // resize layer with optimistic updates
+  // resize layer
   const resizeLayer = useCallback(
     async (point: Point) => {
       if (canvasState.mode !== CanvasMode.Resizing) return;
@@ -453,6 +455,64 @@ const Canvas = ({ boardId, board }: Props) => {
     [canvasState, getLayerById, selectedLayerIds, supabase]
   );
 
+  // translate layers
+  const translateLayers = useCallback(
+    (point: Point) => {
+      if (canvasState.mode !== CanvasMode.Translating) {
+        return;
+      }
+
+      const selectedLayers: ClientLayer[] = getSelectedLayers();
+
+      if (selectedLayers.length === 0) {
+        return;
+      }
+
+      const offset = {
+        x: point.x - canvasState.current.x,
+        y: point.y - canvasState.current.y,
+      };
+
+      const originalLayers = layers;
+
+      // local state
+      setLayers((prev) =>
+        prev.map((layer) => {
+          if (selectedLayerIds.includes(layer.id)) {
+            return {
+              ...layer,
+              x: layer.x + offset.x,
+              y: layer.y + offset.y,
+            };
+          }
+          return layer;
+        })
+      );
+
+      // db changes
+      selectedLayers.forEach(async (layer: ClientLayer) => {
+        try {
+          const { error } = await supabase
+            .from("layers")
+            .update({ x: layer.x + offset.x, y: layer.y + offset.y })
+            .eq("id", layer.id)
+            .select();
+
+          if (error) {
+            console.log("Error in translating layer.");
+            setLayers(originalLayers);
+          }
+        } catch (err) {
+          console.log("Error in translating layer.", err);
+          setLayers(originalLayers);
+        }
+      });
+
+      setCanvasState({ mode: CanvasMode.Translating, current: point });
+    },
+    [canvasState, getSelectedLayers, selectedLayerIds, supabase, layers]
+  );
+
   // handle layer selection
   const onLayerPointerDown = useCallback(
     (e: React.PointerEvent, layerId: string) => {
@@ -467,20 +527,20 @@ const Canvas = ({ boardId, board }: Props) => {
       const point = pointerEventToCanvasPoint(e, camera);
 
       const isAlreadySelected = selectedLayerIds.includes(layerId);
-      const updatedSelection = isAlreadySelected ? [] : [layerId];
 
-      setSelectedLayerIds(updatedSelection);
+      if (!isAlreadySelected) {
+        const updatedSelection = [layerId];
+        setSelectedLayerIds(updatedSelection);
 
-      if (user) {
-        setSelectedLayersByUser((prevUsers) => ({
-          ...prevUsers,
-          [user.id]: updatedSelection,
-        }));
-      }
+        if (user) {
+          setSelectedLayersByUser((prevUsers) => ({
+            ...prevUsers,
+            [user.id]: updatedSelection,
+          }));
+        }
 
-      // broadcast updated selection
-      if (channelRef.current && user) {
-        if (updatedSelection.length > 0) {
+        // broadcast updated selection
+        if (channelRef.current && user) {
           channelRef.current.send({
             type: "broadcast",
             event: "layers-selected",
@@ -489,24 +549,19 @@ const Canvas = ({ boardId, board }: Props) => {
               layerIds: updatedSelection,
             },
           });
-        } else {
-          channelRef.current.send({
-            type: "broadcast",
-            event: "layers-deselected",
-            payload: {
-              userId: user.id,
-            },
-          });
         }
-      }
 
-      if (!isAlreadySelected) {
-        setCanvasState({ mode: CanvasMode.Translating, current: point });
-      } else {
         setCanvasState({ mode: CanvasMode.None });
+      } else {
+        // dragging
+        dragStartPointRef.current = point;
+        setCanvasState({
+          mode: CanvasMode.Translating,
+          current: point,
+        });
       }
     },
-    [canvasState.mode, camera, selectedLayerIds, user]
+    [camera, selectedLayerIds, user, canvasState.mode]
   );
 
   // handle layer deselection
@@ -553,8 +608,22 @@ const Canvas = ({ boardId, board }: Props) => {
     (e: React.PointerEvent) => {
       const current = pointerEventToCanvasPoint(e, camera);
 
-      // resize
-      if (canvasState.mode === CanvasMode.Resizing) resizeLayer(current);
+      // translate or resize
+      if (canvasState.mode === CanvasMode.Translating) {
+        if (dragStartPointRef.current) {
+          const distance = Math.hypot(
+            current.x - dragStartPointRef.current.x,
+            current.y - dragStartPointRef.current.y
+          );
+          if (distance > 5) {
+            hasDraggedRef.current = true;
+            dragStartPointRef.current = null;
+          }
+        }
+        translateLayers(current);
+      } else if (canvasState.mode === CanvasMode.Resizing) {
+        resizeLayer(current);
+      }
 
       // cursor
       if (channelRef.current && user) {
@@ -573,7 +642,7 @@ const Canvas = ({ boardId, board }: Props) => {
         });
       }
     },
-    [camera, canvasState.mode, resizeLayer, user]
+    [camera, canvasState.mode, resizeLayer, translateLayers, user]
   );
 
   const onPointerLeave = useCallback(() => {
@@ -601,11 +670,39 @@ const Canvas = ({ boardId, board }: Props) => {
       if (canvasState.mode === CanvasMode.Inserting) {
         inserLayer(canvasState.layerType, point);
       }
-      if (canvasState.mode !== CanvasMode.Translating) {
-        setCanvasState({ mode: CanvasMode.None });
+
+      if (
+        canvasState.mode === CanvasMode.Translating &&
+        !hasDraggedRef.current
+      ) {
+        setSelectedLayerIds([]);
+
+        if (user) {
+          setSelectedLayersByUser((prev) => {
+            const updated = { ...prev };
+            delete updated[user.id];
+            return updated;
+          });
+        }
+
+        // broadcast deselection
+        if (channelRef.current && user) {
+          channelRef.current.send({
+            type: "broadcast",
+            event: "layers-deselected",
+            payload: {
+              userId: user.id,
+            },
+          });
+        }
       }
+
+      // Reset drag tracking
+      dragStartPointRef.current = null;
+      hasDraggedRef.current = false;
+      setCanvasState({ mode: CanvasMode.None });
     },
-    [camera, canvasState, inserLayer]
+    [camera, canvasState, inserLayer, user]
   );
 
   //resize selector click handler
