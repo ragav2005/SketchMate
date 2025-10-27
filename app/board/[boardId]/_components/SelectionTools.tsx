@@ -8,6 +8,8 @@ import { BringToFront, SendToBack, Trash2 } from "lucide-react";
 
 interface Props {
   camera: Camera;
+  lastUsedColor: Color;
+
   setLastUsedColor: (color: Color) => void;
   selectedLayers: ClientLayer[];
   selectionBounds: XYWH | null;
@@ -22,6 +24,7 @@ const SelectionTools = memo(
     selectionBounds,
     selectedLayers,
     getLayerById,
+    lastUsedColor,
     setLayers,
   }: Props) => {
     const supabase = createClient();
@@ -182,7 +185,7 @@ const SelectionTools = memo(
         )`,
         }}
       >
-        <ColorPicker onChange={setFill} />
+        <ColorPicker onChange={setFill} lastUsedColor={lastUsedColor} />
         <div className="flex flex-col gap-y-0.5">
           <Hint label="Bring to front">
             <Button

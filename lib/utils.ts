@@ -116,3 +116,17 @@ export function getContrastingTextColor(color: Color) {
 
   return luminance > 182 ? "black" : "white";
 }
+
+export function cssToColor(cssColor: string) {
+  if (!cssColor.startsWith("#") || cssColor.length !== 7) {
+    return { r: 255, g: 255, b: 255 };
+  }
+
+  const hex_color = cssColor.slice(1);
+
+  const r = parseInt(hex_color.substring(0, 2), 16);
+  const g = parseInt(hex_color.substring(2, 4), 16);
+  const b = parseInt(hex_color.substring(4), 16);
+
+  return { r, g, b };
+}

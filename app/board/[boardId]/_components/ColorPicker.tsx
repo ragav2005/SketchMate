@@ -1,11 +1,15 @@
 "use client";
 import { Color } from "@/types/canvas";
 import { colorToCss } from "@/lib/utils";
+import { CustomColorPicker } from "@/components/CustomColorPicker";
+import { useState } from "react";
 interface Props {
+  lastUsedColor: Color;
   onChange: (color: Color) => void;
 }
 
-const ColorPicker = ({ onChange }: Props) => {
+const ColorPicker = ({ onChange, lastUsedColor }: Props) => {
+  const [color, setColor] = useState<Color>(lastUsedColor);
   return (
     <div className="flex flex-wrap gap-2 items-center max-w-[164px] pr-2 mr-2 border-r border-neutral-200">
       <ColorButton color={{ r: 243, g: 82, b: 35 }} onClick={onChange} />
@@ -14,8 +18,16 @@ const ColorPicker = ({ onChange }: Props) => {
       <ColorButton color={{ r: 39, g: 142, b: 237 }} onClick={onChange} />
       <ColorButton color={{ r: 155, g: 105, b: 245 }} onClick={onChange} />
       <ColorButton color={{ r: 252, g: 142, b: 42 }} onClick={onChange} />
-      <ColorButton color={{ r: 0, g: 0, b: 0 }} onClick={onChange} />
-      <ColorButton color={{ r: 255, g: 255, b: 255 }} onClick={onChange} />
+      <ColorButton color={{ r: 0, g: 0, b: 0 }} onClick={onChange} />{" "}
+      <CustomColorPicker
+        lastUsedColor={lastUsedColor}
+        className="w-8 h-8 rounded-full"
+        value={color}
+        onChange={(newColor: Color) => {
+          setColor(newColor);
+          onChange(newColor);
+        }}
+      />
     </div>
   );
 };

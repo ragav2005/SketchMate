@@ -582,6 +582,24 @@ const Canvas = ({ boardId, board }: Props) => {
     [layers, user]
   );
 
+  // todo
+  // start drawing
+  const startDrawing = useCallback((point: Point, pressure: number) => {}, []);
+
+  // todo
+  // continue drawing
+  const continueDrawing = useCallback(
+    (current: Point, e: React.PointerEvent) => {
+      if (canvasState.mode !== CanvasMode.Pencil || e.buttons !== 1) return;
+    },
+    [canvasState.mode]
+  );
+
+  // insert path
+  const inserPath = useCallback(() => {
+    if (layers.length >= MAX_LAYERS) return;
+  }, [layers.length]);
+
   // handle layer selection
   const onLayerPointerDown = useCallback(
     (e: React.PointerEvent, layerId: string) => {
@@ -637,7 +655,12 @@ const Canvas = ({ boardId, board }: Props) => {
   const handleCanvasClick = useCallback(
     (e: React.PointerEvent) => {
       const point = pointerEventToCanvasPoint(e, camera);
+
       if (canvasState.mode === CanvasMode.Inserting) return;
+
+      if (canvasState.mode === CanvasMode.Pencil) {
+        startDrawing(point, e.pressure);
+      }
 
       const target = e.target as SVGElement;
 
@@ -669,7 +692,7 @@ const Canvas = ({ boardId, board }: Props) => {
 
       setCanvasState({ origin: point, mode: CanvasMode.Pressing });
     },
-    [camera, canvasState.mode, selectedLayerIds.length, user]
+    [camera, canvasState.mode, selectedLayerIds.length, startDrawing, user]
   );
 
   const onWheel = useCallback((e: React.WheelEvent) => {
@@ -703,10 +726,11 @@ const Canvas = ({ boardId, board }: Props) => {
         translateLayers(current);
       } else if (canvasState.mode === CanvasMode.Resizing) {
         resizeLayer(current);
+      } else if (canvasState.mode === CanvasMode.Pencil) {
+        continueDrawing(current, e);
       }
-
-      // cursor
       if (channelRef.current && user) {
+        // cursor
         channelRef.current.send({
           type: "broadcast",
           event: "cursor-pos",
@@ -725,6 +749,7 @@ const Canvas = ({ boardId, board }: Props) => {
     [
       camera,
       canvasState,
+      continueDrawing,
       resizeLayer,
       startMultiSelection,
       translateLayers,
@@ -755,7 +780,9 @@ const Canvas = ({ boardId, board }: Props) => {
     (e: React.PointerEvent) => {
       const point = pointerEventToCanvasPoint(e, camera);
 
-      if (canvasState.mode === CanvasMode.Inserting) {
+      if (canvasState.mode === CanvasMode.Pencil) {
+        inserPath();
+      } else if (canvasState.mode === CanvasMode.Inserting) {
         inserLayer(canvasState.layerType, point);
       }
 
@@ -790,7 +817,7 @@ const Canvas = ({ boardId, board }: Props) => {
       hasDraggedRef.current = false;
       setCanvasState({ mode: CanvasMode.None });
     },
-    [camera, canvasState, inserLayer, user]
+    [camera, canvasState, inserLayer, inserPath, user]
   );
 
   //resize selector click handler
@@ -818,6 +845,7 @@ const Canvas = ({ boardId, board }: Props) => {
         getLayerById={getLayerById}
         setLayers={setLayers}
         setLastUsedColor={setLastUsedColor}
+        lastUsedColor={lastUsedColor}
         selectedLayers={getSelectedLayers()}
         selectionBounds={useSelectionBounds(getSelectedLayers())}
       />
