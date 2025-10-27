@@ -288,11 +288,11 @@ export type CanvasState =
     }
   | {
       mode: CanvasMode.Pressing;
-      point: Point;
+      origin: Point;
     }
   | {
       mode: CanvasMode.SelectionNet;
-      orgin: Point;
+      origin: Point;
       current?: Point;
     }
   | {

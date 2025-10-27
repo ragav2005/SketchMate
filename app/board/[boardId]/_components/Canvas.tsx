@@ -9,7 +9,11 @@ import CursorsPresence from "./CursorPresence";
 import { RealtimeChannel } from "@supabase/supabase-js";
 import useAuth from "@/lib/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
-import { pointerEventToCanvasPoint, resizeBounds } from "@/lib/utils";
+import {
+  findIntersectingLayersWithRectangle,
+  pointerEventToCanvasPoint,
+  resizeBounds,
+} from "@/lib/utils";
 import { toast } from "sonner";
 import LayerPreview from "./LayerPreview";
 import { dbLayersToClientLayers, layerTypeToString } from "@/lib/layer-utils";
@@ -68,9 +72,9 @@ const Canvas = ({ boardId, board }: Props) => {
   const canUndo = useBoardStore((state) => state.undoStack.length > 0);
   const canRedo = useBoardStore((state) => state.redoStack.length > 0);
   const [lastUsedColor, setLastUsedColor] = useState<Color>({
-    r: 0,
-    g: 255,
-    b: 255,
+    r: 255,
+    g: 249,
+    b: 177,
   });
 
   // returns selected layer -helper
@@ -537,6 +541,47 @@ const Canvas = ({ boardId, board }: Props) => {
     [canvasState, getSelectedLayers, selectedLayerIds, supabase, layers]
   );
 
+  // start multi selection
+  const startMultiSelection = useCallback((current: Point, origin: Point) => {
+    setCanvasState({ mode: CanvasMode.SelectionNet, origin, current });
+  }, []);
+
+  // update multi selection
+  const updateSelectionNet = useCallback(
+    (current: Point, origin: Point) => {
+      if (Math.abs(current.x - origin.x) + Math.abs(current.y - origin.y) > 5) {
+        setCanvasState({ mode: CanvasMode.SelectionNet, origin, current });
+        const ids = findIntersectingLayersWithRectangle(
+          layers,
+          origin,
+          current
+        );
+
+        // broadcast changes
+        setSelectedLayerIds(ids);
+
+        if (user) {
+          setSelectedLayersByUser((prevUsers) => ({
+            ...prevUsers,
+            [user.id]: ids,
+          }));
+        }
+
+        if (channelRef.current && user) {
+          channelRef.current.send({
+            type: "broadcast",
+            event: "layers-selected",
+            payload: {
+              userId: user.id,
+              layerIds: ids,
+            },
+          });
+        }
+      }
+    },
+    [layers, user]
+  );
+
   // handle layer selection
   const onLayerPointerDown = useCallback(
     (e: React.PointerEvent, layerId: string) => {
@@ -588,12 +633,15 @@ const Canvas = ({ boardId, board }: Props) => {
     [camera, selectedLayerIds, user, canvasState.mode]
   );
 
-  // handle layer deselection
+  // handle layer deselection and canvas pointer down
   const handleCanvasClick = useCallback(
-    (e: React.MouseEvent<SVGSVGElement>) => {
+    (e: React.PointerEvent) => {
+      const point = pointerEventToCanvasPoint(e, camera);
       if (canvasState.mode === CanvasMode.Inserting) return;
 
       const target = e.target as SVGElement;
+
+      // deselection
       if (target.tagName === "svg" || target.tagName === "g") {
         if (selectedLayerIds.length > 0) {
           setSelectedLayerIds([]);
@@ -618,8 +666,10 @@ const Canvas = ({ boardId, board }: Props) => {
           }
         }
       }
+
+      setCanvasState({ origin: point, mode: CanvasMode.Pressing });
     },
-    [selectedLayerIds, user, canvasState]
+    [camera, canvasState.mode, selectedLayerIds.length, user]
   );
 
   const onWheel = useCallback((e: React.WheelEvent) => {
@@ -634,8 +684,12 @@ const Canvas = ({ boardId, board }: Props) => {
     (e: React.PointerEvent) => {
       const current = pointerEventToCanvasPoint(e, camera);
 
-      // translate or resize
-      if (canvasState.mode === CanvasMode.Translating) {
+      // pressing or translate or resize
+      if (canvasState.mode === CanvasMode.Pressing) {
+        startMultiSelection(current, canvasState.origin);
+      } else if (canvasState.mode === CanvasMode.SelectionNet) {
+        updateSelectionNet(current, canvasState.origin);
+      } else if (canvasState.mode === CanvasMode.Translating) {
         if (dragStartPointRef.current) {
           const distance = Math.hypot(
             current.x - dragStartPointRef.current.x,
@@ -668,7 +722,15 @@ const Canvas = ({ boardId, board }: Props) => {
         });
       }
     },
-    [camera, canvasState.mode, resizeLayer, translateLayers, user]
+    [
+      camera,
+      canvasState,
+      resizeLayer,
+      startMultiSelection,
+      translateLayers,
+      updateSelectionNet,
+      user,
+    ]
   );
 
   const onPointerLeave = useCallback(() => {
@@ -765,7 +827,7 @@ const Canvas = ({ boardId, board }: Props) => {
         onWheel={onWheel}
         onPointerLeave={onPointerLeave}
         onPointerUp={onPointerup}
-        onClick={handleCanvasClick}
+        onPointerDown={handleCanvasClick}
       >
         <g style={{ transform: `translate(${camera.x}px, ${camera.y}px)` }}>
           {layers.map((layer) => (
@@ -777,6 +839,7 @@ const Canvas = ({ boardId, board }: Props) => {
               selectedByUserIds={Object.entries(selectedLayersByUser)
                 .filter(([, layerIds]) => layerIds.includes(layer.id))
                 .map(([userId]) => userId)}
+              setLayers={setLayers}
             />
           ))}
           <SelectionBox
@@ -784,6 +847,17 @@ const Canvas = ({ boardId, board }: Props) => {
             bounds={useSelectionBounds(getSelectedLayers())}
             onResizeHandlePointerDown={onResizeHandlePointerDown}
           />
+          {canvasState.mode === CanvasMode.SelectionNet &&
+            canvasState.current != null && (
+              <rect
+                className="fill-blue-500/5 stroke-blue-500 stroke-1"
+                strokeDasharray="5,5"
+                x={Math.min(canvasState.origin.x, canvasState.current.x)}
+                y={Math.min(canvasState.origin.y, canvasState.current.y)}
+                width={Math.abs(canvasState.origin.x - canvasState.current.x)}
+                height={Math.abs(canvasState.origin.y - canvasState.current.y)}
+              />
+            )}
 
           <CursorsPresence cursors={cursors} currentUserId={user?.id} />
         </g>

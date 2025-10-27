@@ -1,11 +1,15 @@
 import { ClientLayer, LayerType } from "@/types/canvas";
 import React, { memo } from "react";
 import Rectangle from "./Rectangle";
+import Ellipse from "./Ellipse";
+import Text from "./Text";
+import Note from "./Note";
 interface Props {
   layer: ClientLayer;
   selectedByUserIds: string[];
   isSelectedByUser: boolean;
   onLayerPointerDown: (e: React.PointerEvent, layerId: string) => void;
+  setLayers: React.Dispatch<React.SetStateAction<ClientLayer[]>>;
 }
 const LayerPreview = memo(
   ({
@@ -13,6 +17,7 @@ const LayerPreview = memo(
     onLayerPointerDown,
     selectedByUserIds,
     isSelectedByUser,
+    setLayers,
   }: Props) => {
     if (!layer) {
       return null;
@@ -28,6 +33,41 @@ const LayerPreview = memo(
             selectedByUserIds={selectedByUserIds}
           />
         );
+
+      case LayerType.Ellipse:
+        return (
+          <Ellipse
+            layer={layer}
+            isSelectedByUser={isSelectedByUser}
+            onPointerDown={onLayerPointerDown}
+            selectedByUserIds={selectedByUserIds}
+          />
+        );
+
+      case LayerType.Text:
+        return (
+          <Text
+            setLayers={setLayers}
+            layer={layer}
+            isSelectedByUser={isSelectedByUser}
+            onPointerDown={onLayerPointerDown}
+            selectedByUserIds={selectedByUserIds}
+          />
+        );
+
+      case LayerType.Note:
+        return (
+          <Note
+            setLayers={setLayers}
+            layer={layer}
+            isSelectedByUser={isSelectedByUser}
+            onPointerDown={onLayerPointerDown}
+            selectedByUserIds={selectedByUserIds}
+          />
+        );
+
+      case LayerType.Path:
+      // TODO: Create Path component
 
       default:
         console.warn("Invalid layer type!!");
