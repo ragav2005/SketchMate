@@ -56,6 +56,8 @@ const Canvas = ({ boardId, board }: Props) => {
   const supabase = createClient();
   const dragStartPointRef = useRef<Point | null>(null);
   const hasDraggedRef = useRef(false);
+  const resizeStartLayerRef = useRef<ClientLayer | null>(null);
+  const translateStartLayersRef = useRef<ClientLayer[]>([]);
   // realtime states
   const channelRef = useRef<RealtimeChannel | null>(null);
   const [presentUsers, setPresentUsers] = useState<PresentUser[]>([]);
@@ -72,7 +74,7 @@ const Canvas = ({ boardId, board }: Props) => {
   });
   const undo = useBoardStore((state) => state.undo);
   const redo = useBoardStore((state) => state.redo);
-  // const addAction = useBoardStore((state) => state.addAction);
+  const addAction = useBoardStore((state) => state.addAction);
   const canUndo = useBoardStore((state) => state.undoStack.length > 0);
   const canRedo = useBoardStore((state) => state.redoStack.length > 0);
   const [lastUsedColor, setLastUsedColor] = useState<Color>({
@@ -81,8 +83,6 @@ const Canvas = ({ boardId, board }: Props) => {
     b: 177,
   });
   const [pencilDraft, setPencilDraft] = useState<number[][]>([]);
-
-  useDisableScrollBounce();
 
   useEffect(() => {
     if (canvasState.mode !== CanvasMode.Pencil && pencilDraft.length > 0) {
@@ -397,7 +397,7 @@ const Canvas = ({ boardId, board }: Props) => {
   }, [boardId, supabase, user]);
 
   // insert layer
-  const inserLayer = useCallback(
+  const insertLayer = useCallback(
     async (
       layerType:
         | LayerType.Ellipse
@@ -418,7 +418,7 @@ const Canvas = ({ boardId, board }: Props) => {
       if (canvasState.mode !== CanvasMode.Inserting) return;
 
       try {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("layers")
           .insert([
             {
@@ -440,12 +440,28 @@ const Canvas = ({ boardId, board }: Props) => {
           return;
         }
 
+        if (data && data.length > 0) {
+          const newLayer = dbLayersToClientLayers([data[0] as DBLayer])[0];
+          addAction({
+            type: "ADD",
+            layer: newLayer,
+          });
+        }
+
         setCanvasState({ mode: CanvasMode.None });
       } catch (err) {
         toast.error(`Failed to insert layer : ${err}`);
       }
     },
-    [user, layers, canvasState.mode, boardId, lastUsedColor, supabase]
+    [
+      user,
+      layers,
+      canvasState.mode,
+      boardId,
+      lastUsedColor,
+      supabase,
+      addAction,
+    ]
   );
 
   // resize layer
@@ -462,8 +478,15 @@ const Canvas = ({ boardId, board }: Props) => {
       const layerId = selectedLayerIds[0];
       if (!layerId) return;
 
+      const originalLayer = getLayerById(layerId)!;
+
+      // Store initial state on first resize call
+      if (!resizeStartLayerRef.current) {
+        resizeStartLayerRef.current = { ...originalLayer };
+      }
+
       const updatedLayer = {
-        ...getLayerById(layerId)!,
+        ...originalLayer,
         x: bounds.x,
         y: bounds.y,
         width: bounds.width,
@@ -518,6 +541,13 @@ const Canvas = ({ boardId, board }: Props) => {
 
       if (selectedLayers.length === 0) {
         return;
+      }
+
+      // Store initial state on first translate call
+      if (translateStartLayersRef.current.length === 0) {
+        translateStartLayersRef.current = selectedLayers.map((layer) => ({
+          ...layer,
+        }));
       }
 
       const offset = {
@@ -698,13 +728,26 @@ const Canvas = ({ boardId, board }: Props) => {
       if (data && data.length > 0) {
         const realLayer = dbLayersToClientLayers([data[0] as DBLayer])[0];
         setLayers((prev) => prev.map((l) => (l.id === tempId ? realLayer : l)));
+
+        addAction({
+          type: "ADD",
+          layer: realLayer,
+        });
       }
     } catch (err) {
       console.error("Failed to insert path:", err);
       toast.error("Failed to create drawing");
       setPencilDraft([]);
     }
-  }, [layers.length, pencilDraft, user, lastUsedColor, boardId, supabase]);
+  }, [
+    layers.length,
+    pencilDraft,
+    user,
+    lastUsedColor,
+    boardId,
+    supabase,
+    addAction,
+  ]);
 
   // handle layer selection
   const onLayerPointerDown = useCallback(
@@ -890,7 +933,40 @@ const Canvas = ({ boardId, board }: Props) => {
       if (canvasState.mode === CanvasMode.Pencil) {
         inserPath();
       } else if (canvasState.mode === CanvasMode.Inserting) {
-        inserLayer(canvasState.layerType, point);
+        insertLayer(canvasState.layerType, point);
+      } else if (canvasState.mode === CanvasMode.Resizing) {
+        if (resizeStartLayerRef.current && selectedLayerIds.length > 0) {
+          const layerId = selectedLayerIds[0];
+          const finalLayer = getLayerById(layerId);
+          if (finalLayer) {
+            addAction({
+              type: "UPDATE",
+              before: resizeStartLayerRef.current,
+              after: finalLayer,
+            });
+          }
+          resizeStartLayerRef.current = null;
+        }
+      } else if (
+        canvasState.mode === CanvasMode.Translating &&
+        hasDraggedRef.current
+      ) {
+        if (translateStartLayersRef.current.length > 0) {
+          const selectedLayers = getSelectedLayers();
+          translateStartLayersRef.current.forEach((beforeLayer) => {
+            const afterLayer = selectedLayers.find(
+              (l) => l.id === beforeLayer.id
+            );
+            if (afterLayer) {
+              addAction({
+                type: "UPDATE",
+                before: beforeLayer,
+                after: afterLayer,
+              });
+            }
+          });
+          translateStartLayersRef.current = [];
+        }
       }
 
       if (
@@ -924,7 +1000,17 @@ const Canvas = ({ boardId, board }: Props) => {
       hasDraggedRef.current = false;
       setCanvasState({ mode: CanvasMode.None });
     },
-    [camera, canvasState, inserLayer, inserPath, user]
+    [
+      camera,
+      canvasState,
+      insertLayer,
+      inserPath,
+      user,
+      selectedLayerIds,
+      getLayerById,
+      getSelectedLayers,
+      addAction,
+    ]
   );
 
   //resize selector click handler
@@ -935,6 +1021,211 @@ const Canvas = ({ boardId, board }: Props) => {
     []
   );
 
+  // undo handler
+  const handleUndo = useCallback(async () => {
+    const state = useBoardStore.getState();
+    if (state.undoStack.length === 0) return;
+
+    const action = state.undoStack[state.undoStack.length - 1];
+    const previousLayers = [...layers];
+
+    await undo(layers, async (updatedLayers) => {
+      const sortedLayers = [...updatedLayers].sort(
+        (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
+      );
+      setLayers(sortedLayers);
+
+      try {
+        if (action.type === "ADD") {
+          const { error } = await supabase
+            .from("layers")
+            .delete()
+            .eq("id", action.layer.id);
+          if (error) throw error;
+        } else if (action.type === "UPDATE") {
+          const metadata =
+            "points" in action.before && action.before.points
+              ? { points: action.before.points }
+              : null;
+
+          const { error } = await supabase
+            .from("layers")
+            .update({
+              x: action.before.x,
+              y: action.before.y,
+              width: action.before.width,
+              height: action.before.height,
+              fill: action.before.fill,
+              value:
+                "value" in action.before ? action.before.value || null : null,
+              z_index: action.before.zIndex,
+              metadata: metadata,
+            })
+            .eq("id", action.before.id);
+
+          if (error) throw error;
+        } else if (action.type === "DELETE") {
+          const layer = action.layer;
+          const metadata =
+            "points" in layer && layer.points ? { points: layer.points } : null;
+
+          const { error } = await supabase.from("layers").insert({
+            id: layer.id,
+            board_id: layer.boardId,
+            author_id: layer.authorId,
+            author_type: layer.authorType,
+            layer_type:
+              layer.type === 0
+                ? "Rectangle"
+                : layer.type === 1
+                ? "Ellipse"
+                : layer.type === 2
+                ? "Path"
+                : layer.type === 3
+                ? "Text"
+                : "Note",
+            x: layer.x,
+            y: layer.y,
+            width: layer.width,
+            height: layer.height,
+            fill: layer.fill,
+            value: "value" in layer ? layer.value || null : null,
+            z_index: layer.zIndex,
+            metadata: metadata,
+          });
+
+          if (error) throw error;
+        }
+      } catch (error) {
+        console.error("Failed to sync undo to database:", error);
+        toast.error("Failed to undo. Please try again.");
+        setLayers(previousLayers);
+        useBoardStore.setState((state) => ({
+          undoStack: [...state.undoStack, action],
+          redoStack: state.redoStack.slice(0, -1),
+        }));
+      }
+    });
+  }, [undo, layers, supabase]);
+
+  // redo handler
+  const handleRedo = useCallback(async () => {
+    const state = useBoardStore.getState();
+    if (state.redoStack.length === 0) return;
+
+    const action = state.redoStack[state.redoStack.length - 1];
+    const previousLayers = [...layers];
+
+    await redo(layers, async (updatedLayers) => {
+      const sortedLayers = [...updatedLayers].sort(
+        (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
+      );
+      setLayers(sortedLayers);
+
+      try {
+        if (action.type === "ADD") {
+          const layer = action.layer;
+          const metadata =
+            "points" in layer && layer.points ? { points: layer.points } : null;
+
+          const { error } = await supabase.from("layers").insert({
+            id: layer.id,
+            board_id: layer.boardId,
+            author_id: layer.authorId,
+            author_type: layer.authorType,
+            layer_type:
+              layer.type === 0
+                ? "Rectangle"
+                : layer.type === 1
+                ? "Ellipse"
+                : layer.type === 2
+                ? "Path"
+                : layer.type === 3
+                ? "Text"
+                : "Note",
+            x: layer.x,
+            y: layer.y,
+            width: layer.width,
+            height: layer.height,
+            fill: layer.fill,
+            value: "value" in layer ? layer.value || null : null,
+            z_index: layer.zIndex,
+            metadata: metadata,
+          });
+
+          if (error) throw error;
+        } else if (action.type === "UPDATE") {
+          const metadata =
+            "points" in action.after && action.after.points
+              ? { points: action.after.points }
+              : null;
+
+          const { error } = await supabase
+            .from("layers")
+            .update({
+              x: action.after.x,
+              y: action.after.y,
+              width: action.after.width,
+              height: action.after.height,
+              fill: action.after.fill,
+              value:
+                "value" in action.after ? action.after.value || null : null,
+              z_index: action.after.zIndex,
+              metadata: metadata,
+            })
+            .eq("id", action.after.id);
+
+          if (error) throw error;
+        } else if (action.type === "DELETE") {
+          const { error } = await supabase
+            .from("layers")
+            .delete()
+            .eq("id", action.layer.id);
+          if (error) throw error;
+        }
+      } catch (error) {
+        console.error("Failed to sync redo to database:", error);
+        toast.error("Failed to redo. Please try again.");
+        setLayers(previousLayers);
+        useBoardStore.setState((state) => ({
+          redoStack: [...state.redoStack, action],
+          undoStack: state.undoStack.slice(0, -1),
+        }));
+      }
+    });
+  }, [redo, layers, supabase]);
+
+  useDisableScrollBounce();
+
+  // undo/redo shortcuts effect
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.contentEditable === "true" ||
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA"
+      ) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        e.preventDefault();
+        if (canUndo) {
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "y") {
+        e.preventDefault();
+        if (canRedo) {
+          handleRedo();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleUndo, handleRedo, canUndo, canRedo]);
+
   return (
     <main className="h-screen w-full relative bg-neutral-100 touch-none">
       <Info board={board} />
@@ -942,9 +1233,9 @@ const Canvas = ({ boardId, board }: Props) => {
       <Toolbar
         canvasState={canvasState}
         setCanvasState={setCanvasState}
-        undo={undo}
+        undo={handleUndo}
         canUndo={canUndo}
-        redo={redo}
+        redo={handleRedo}
         canRedo={canRedo}
       />
       <SelectionTools
@@ -955,6 +1246,7 @@ const Canvas = ({ boardId, board }: Props) => {
         lastUsedColor={lastUsedColor}
         selectedLayers={getSelectedLayers()}
         selectionBounds={useSelectionBounds(getSelectedLayers())}
+        addAction={addAction}
       />
       <svg
         className="h-[100vh] w-[100vw]"
@@ -975,6 +1267,7 @@ const Canvas = ({ boardId, board }: Props) => {
                 .filter(([, layerIds]) => layerIds.includes(layer.id))
                 .map(([userId]) => userId)}
               setLayers={setLayers}
+              addAction={addAction}
             />
           ))}
           <SelectionBox

@@ -6,12 +6,15 @@ import Text from "./Text";
 import Note from "./Note";
 import Path from "./Path";
 import { colorToCss } from "@/lib/utils";
+import { Action } from "@/store/useBoardStore";
+
 interface Props {
   layer: ClientLayer;
   selectedByUserIds: string[];
   isSelectedByUser: boolean;
   onLayerPointerDown: (e: React.PointerEvent, layerId: string) => void;
   setLayers: React.Dispatch<React.SetStateAction<ClientLayer[]>>;
+  addAction?: (action: Action) => void;
 }
 const LayerPreview = memo(
   ({
@@ -20,6 +23,7 @@ const LayerPreview = memo(
     selectedByUserIds,
     isSelectedByUser,
     setLayers,
+    addAction,
   }: Props) => {
     if (!layer) {
       return null;
@@ -54,6 +58,7 @@ const LayerPreview = memo(
             isSelectedByUser={isSelectedByUser}
             onPointerDown={onLayerPointerDown}
             selectedByUserIds={selectedByUserIds}
+            addAction={addAction}
           />
         );
 
@@ -65,6 +70,7 @@ const LayerPreview = memo(
             isSelectedByUser={isSelectedByUser}
             onPointerDown={onLayerPointerDown}
             selectedByUserIds={selectedByUserIds}
+            addAction={addAction}
           />
         );
 

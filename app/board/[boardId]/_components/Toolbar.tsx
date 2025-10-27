@@ -15,8 +15,8 @@ import {
 interface Props {
   canvasState: CanvasState;
   setCanvasState: (newState: CanvasState) => void;
-  undo: () => void;
-  redo: () => void;
+  undo: () => Promise<void>;
+  redo: () => Promise<void>;
   canUndo: boolean;
   canRedo: boolean;
 }
@@ -24,8 +24,8 @@ interface Props {
 const Toolbar = ({
   canvasState,
   setCanvasState,
-  // undo,
-  // redo,
+  undo,
+  redo,
   canUndo,
   canRedo,
 }: Props) => {
@@ -111,13 +111,13 @@ const Toolbar = ({
         <ToolButton
           label="Undo"
           icon={Undo2}
-          onClick={() => {}}
+          onClick={undo}
           isDisabled={!canUndo}
         />
         <ToolButton
           label="Redo"
           icon={Redo2}
-          onClick={() => {}}
+          onClick={redo}
           isDisabled={!canRedo}
         />
       </div>

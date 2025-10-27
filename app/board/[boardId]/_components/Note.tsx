@@ -7,8 +7,9 @@ import {
   idToColor,
 } from "@/lib/utils";
 import { ClientLayer, ClientNoteLayer } from "@/types/canvas";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { Action } from "@/store/useBoardStore";
 
 const font = Kalam({ subsets: ["latin"], weight: ["400"] });
 
@@ -19,6 +20,7 @@ interface Props {
 
   onPointerDown: (e: React.PointerEvent, id: string) => void;
   setLayers: React.Dispatch<React.SetStateAction<ClientLayer[]>>;
+  addAction?: (action: Action) => void;
 }
 
 const calculateFontSize = (width: number, height: number) => {
@@ -35,9 +37,12 @@ const Note = ({
   selectedByUserIds,
   onPointerDown,
   setLayers,
+  addAction,
 }: Props) => {
   const supabase = createClient();
   const { x, y, width, height, fill, value } = layer;
+  const actionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const initialValueRef = useRef<string>(value || "");
 
   const getStrokeColor = () => {
     if (selectedByUserIds.length > 0) {
@@ -49,7 +54,8 @@ const Note = ({
   // update text
   const setValue = useCallback(
     (newValue: string) => {
-      const originalLayer = layer;
+      const originalLayer = { ...layer };
+      const updatedLayer = { ...layer, value: newValue };
 
       setLayers((prev) =>
         prev.map((prevLayer) =>
@@ -71,10 +77,25 @@ const Note = ({
                 prevLayer.id === layer.id ? originalLayer : prevLayer
               )
             );
+          } else {
+            if (actionTimeoutRef.current) {
+              clearTimeout(actionTimeoutRef.current);
+            }
+
+            actionTimeoutRef.current = setTimeout(() => {
+              if (addAction && initialValueRef.current !== newValue) {
+                addAction({
+                  type: "UPDATE",
+                  before: { ...originalLayer, value: initialValueRef.current },
+                  after: updatedLayer,
+                });
+                initialValueRef.current = newValue;
+              }
+            }, 1000);
           }
         });
     },
-    [layer, setLayers, supabase]
+    [layer, setLayers, supabase, addAction]
   );
   const handleContentChange = (e: ContentEditableEvent) => {
     setValue(e.target.value);

@@ -5,16 +5,17 @@ import { createClient } from "@/lib/supabase/client";
 import Hint from "@/components/hint";
 import { Button } from "@/components/ui/button";
 import { BringToFront, SendToBack, Trash2 } from "lucide-react";
+import { Action } from "@/store/useBoardStore";
 
 interface Props {
   camera: Camera;
   lastUsedColor: Color;
-
   setLastUsedColor: (color: Color) => void;
   selectedLayers: ClientLayer[];
   selectionBounds: XYWH | null;
   getLayerById: (id: string) => ClientLayer | undefined;
   setLayers: React.Dispatch<React.SetStateAction<ClientLayer[]>>;
+  addAction: (action: Action) => void;
 }
 
 const SelectionTools = memo(
@@ -26,6 +27,7 @@ const SelectionTools = memo(
     getLayerById,
     lastUsedColor,
     setLayers,
+    addAction,
   }: Props) => {
     const supabase = createClient();
 
@@ -61,6 +63,12 @@ const SelectionTools = memo(
                   prevLayer.id === layer.id ? originalLayers : prevLayer
                 )
               );
+            } else {
+              addAction({
+                type: "UPDATE",
+                before: originalLayers,
+                after: updatedLayer,
+              });
             }
           } catch (err) {
             console.log("Error updating layer fill:", err);
@@ -72,7 +80,14 @@ const SelectionTools = memo(
           }
         });
       },
-      [getLayerById, selectedLayers, setLastUsedColor, setLayers, supabase]
+      [
+        getLayerById,
+        selectedLayers,
+        setLastUsedColor,
+        setLayers,
+        supabase,
+        addAction,
+      ]
     );
     // delete handler
     const handleDelete = useCallback(() => {
@@ -89,18 +104,24 @@ const SelectionTools = memo(
 
           if (error) {
             console.log("Failed to delete layer:", error);
+          } else {
+            addAction({
+              type: "DELETE",
+              layer: layer,
+            });
           }
         } catch (err) {
           console.log("Failed to delete layer:", err);
         }
       });
-    }, [selectedLayers, supabase, setLayers]);
+    }, [selectedLayers, supabase, setLayers, addAction]);
 
     //move to back
     const moveToBack = useCallback(() => {
       if (selectedLayers.length === 0) return;
 
       const newZIndexValues: Record<string, number> = {};
+      const originalLayers = selectedLayers.map((layer) => ({ ...layer }));
 
       setLayers((prev: ClientLayer[]) => {
         const minZ = Math.min(...prev.map((l) => l.zIndex ?? 0));
@@ -120,6 +141,19 @@ const SelectionTools = memo(
         return newLayers.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
       });
 
+      const updatedLayers = selectedLayers.map((layer) => ({
+        ...layer,
+        zIndex: newZIndexValues[layer.id],
+      }));
+
+      updatedLayers.forEach((updatedLayer, idx) => {
+        addAction({
+          type: "UPDATE",
+          before: originalLayers[idx],
+          after: updatedLayer,
+        });
+      });
+
       setTimeout(() => {
         Object.entries(newZIndexValues).forEach(async ([layerId, zIndex]) => {
           try {
@@ -132,13 +166,14 @@ const SelectionTools = memo(
           }
         });
       }, 0);
-    }, [selectedLayers, setLayers, supabase]);
+    }, [selectedLayers, setLayers, supabase, addAction]);
 
     // move to front
     const moveToFront = useCallback(() => {
       if (selectedLayers.length === 0) return;
 
       const newZIndexValues: Record<string, number> = {};
+      const originalLayers = selectedLayers.map((layer) => ({ ...layer }));
 
       setLayers((prev: ClientLayer[]) => {
         const maxZ = Math.max(...prev.map((l) => l.zIndex ?? 0));
@@ -158,6 +193,19 @@ const SelectionTools = memo(
         return newLayers.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
       });
 
+      const updatedLayers = selectedLayers.map((layer) => ({
+        ...layer,
+        zIndex: newZIndexValues[layer.id],
+      }));
+
+      updatedLayers.forEach((updatedLayer, idx) => {
+        addAction({
+          type: "UPDATE",
+          before: originalLayers[idx],
+          after: updatedLayer,
+        });
+      });
+
       setTimeout(() => {
         Object.entries(newZIndexValues).forEach(async ([layerId, zIndex]) => {
           try {
@@ -170,7 +218,7 @@ const SelectionTools = memo(
           }
         });
       }, 0);
-    }, [selectedLayers, setLayers, supabase]);
+    }, [selectedLayers, setLayers, supabase, addAction]);
 
     if (!selectionBounds) return null;
     const x = selectionBounds.width / 2 + selectionBounds.x + camera.x;
