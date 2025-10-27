@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { Organization } from "../../layout";
 import OrgSwitcher from "./OrgSwitcher";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,8 @@ const OrgSidebar = ({
   const favorites = searchParams.get("favorites");
   const { user } = useAuth();
 
+  const memberOrgMapRef = useRef<Record<string, string>>({});
+
   // callback func
   const update_org_rpc = useCallback(async () => {
     try {
@@ -56,12 +58,32 @@ const OrgSidebar = ({
     }
   }, [setLoading, setOrganizations, setSelectedOrg, supabase, user?.id]);
 
-  // Organizations effect organizations and organization_members
+  // organizations effect organizations and organization_members
   useEffect(() => {
     if (!user?.id) return;
 
     // first load
     update_org_rpc();
+
+    // leave lookup
+    const populateMapFromOrganizations = async () => {
+      try {
+        const { data: memberData, error } = await supabase
+          .from("organization_members")
+          .select("id, organization_id")
+          .eq("user_id", user.id);
+
+        if (!error && memberData) {
+          memberData.forEach((member) => {
+            memberOrgMapRef.current[member.id] = member.organization_id;
+          });
+        }
+      } catch (e) {
+        console.error("Error pre-populating member map:", e);
+      }
+    };
+
+    populateMapFromOrganizations();
 
     const channel = supabase
       .channel(`org-changes:${user.id}`)
@@ -73,7 +95,29 @@ const OrgSidebar = ({
           table: "organization_members",
           filter: `user_id=eq.${user.id}`,
         },
-        update_org_rpc
+        (payload) => {
+          if (payload.new && Object.keys(payload.new).length > 0) {
+            const newData = payload.new as {
+              id?: string;
+              organization_id?: string;
+            };
+            if (newData.id && newData.organization_id) {
+              memberOrgMapRef.current[newData.id] = newData.organization_id;
+            }
+          }
+
+          if (payload.old) {
+            const oldData = payload.old as { id?: string };
+            if (oldData.id) {
+              const changedOrgId = memberOrgMapRef.current[oldData.id];
+              if (changedOrgId) {
+                delete memberOrgMapRef.current[oldData.id];
+              }
+            }
+          }
+
+          update_org_rpc();
+        }
       )
       .on(
         "postgres_changes",
@@ -92,7 +136,7 @@ const OrgSidebar = ({
     };
   }, [supabase, update_org_rpc, user?.id]);
 
-  // Listen for changes in organizations
+  //  organizations change effect
   useEffect(() => {
     if (!user?.id || organizations.length === 0) return;
 
@@ -123,7 +167,7 @@ const OrgSidebar = ({
     };
   }, [supabase, update_org_rpc, user?.id, organizations]);
 
-  // Listen for member changes
+  // member changes effect
   useEffect(() => {
     if (!user?.id || organizations.length === 0) return;
 
@@ -139,9 +183,29 @@ const OrgSidebar = ({
           table: "organization_members",
         },
         (payload) => {
-          const changedOrgId =
-            (payload.new as { organization_id?: string })?.organization_id ||
-            (payload.old as { organization_id?: string })?.organization_id;
+          if (payload.new && Object.keys(payload.new).length > 0) {
+            const newData = payload.new as {
+              id?: string;
+              organization_id?: string;
+            };
+            if (newData.id && newData.organization_id) {
+              memberOrgMapRef.current[newData.id] = newData.organization_id;
+            }
+          }
+
+          let changedOrgId: string | undefined;
+
+          if (payload.new && Object.keys(payload.new).length > 0) {
+            changedOrgId = (payload.new as { organization_id?: string })
+              ?.organization_id;
+          } else if (payload.old) {
+            const oldData = payload.old as { id?: string };
+            if (oldData.id) {
+              changedOrgId = memberOrgMapRef.current[oldData.id];
+              delete memberOrgMapRef.current[oldData.id];
+            }
+          }
+
           if (changedOrgId && orgIds.includes(changedOrgId)) {
             update_org_rpc();
           }

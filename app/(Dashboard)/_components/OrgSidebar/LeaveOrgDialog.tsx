@@ -12,6 +12,7 @@ import {
 import { Organization } from "../../layout";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import useAuth from "@/lib/hooks/useAuth";
 
 type Props = {
   org: Organization;
@@ -19,7 +20,8 @@ type Props = {
   onOpenChange?: (open: boolean) => void;
 };
 
-const DeleteOrgDialog = ({ org, open, onOpenChange }: Props) => {
+const LeaveOrgDialog = ({ org, open, onOpenChange }: Props) => {
+  const { user } = useAuth();
   const supabase = createClient();
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = typeof open === "boolean";
@@ -32,21 +34,22 @@ const DeleteOrgDialog = ({ org, open, onOpenChange }: Props) => {
     }
   };
 
-  const handleDelete = async () => {
+  const handleLeave = async () => {
+    if (!user) return;
     try {
       const { error } = await supabase
-        .from("organizations")
+        .from("organization_members")
         .delete()
-        .eq("id", org.id);
-
+        .eq("organization_id", org.id)
+        .eq("user_id", user.id);
       if (error) {
-        toast.error("An error occured in deletion.");
+        toast.error("An error occured while leaving.");
       } else {
-        toast.success("Organization deleted successfully.");
+        toast.success("Left the organization successfully.");
       }
     } catch (err) {
       console.log(err);
-      toast.error("An error occured in deletion.");
+      toast.error("An error occured while leaving.");
     } finally {
       setIsOpen(false);
     }
@@ -62,8 +65,8 @@ const DeleteOrgDialog = ({ org, open, onOpenChange }: Props) => {
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
               <span>
-                This action <strong>cannot be undone</strong>. This will
-                permanently delete the organization named
+                This action <strong>cannot be undone</strong>. You will leave
+                the organization named
                 <strong className="capitalize"> {org.name}</strong>.
               </span>
             </AlertDialogDescription>
@@ -75,11 +78,8 @@ const DeleteOrgDialog = ({ org, open, onOpenChange }: Props) => {
             >
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="cursor-pointer"
-            >
-              Delete
+            <AlertDialogAction onClick={handleLeave} className="cursor-pointer">
+              Leave
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -88,4 +88,4 @@ const DeleteOrgDialog = ({ org, open, onOpenChange }: Props) => {
   );
 };
 
-export default DeleteOrgDialog;
+export default LeaveOrgDialog;

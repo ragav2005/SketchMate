@@ -4,16 +4,15 @@ import { HexColorPicker } from "react-colorful";
 import { cn, colorToCss } from "@/lib/utils";
 import { useForwardedRef } from "@/lib/hooks/useForwardedRef";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Color } from "@/types/canvas";
+import { Pipette } from "lucide-react";
+
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Input } from "@/components/ui/input";
-import Image from "next/image";
-import { Color } from "@/types/canvas";
-import { Pipette } from "lucide-react";
-
 const hexToColor = (hex: string): Color => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (result) {

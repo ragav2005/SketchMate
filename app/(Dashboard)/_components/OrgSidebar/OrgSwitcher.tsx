@@ -21,6 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import LeaveOrgDialog from "./LeaveOrgDialog";
 
 //props
 interface OrgSwitcherProps {
@@ -42,7 +43,8 @@ const OrgSwitcher = ({
   const [isOpen, setIsOpen] = useState(false);
   const [deletingOrg, setDeletingOrg] = useState<Organization | null>(null);
   const [editingOrg, setEditingOrg] = useState<Organization | null>(null);
-  const [invitingOrg, setinvitingOrg] = useState<Organization | null>(null);
+  const [invitingOrg, setInvitingOrg] = useState<Organization | null>(null);
+  const [leavingOrg, setLeavingOrg] = useState<Organization | null>(null);
 
   const handleSelectOrg = (org: Organization) => {
     setSelectedOrg(org);
@@ -139,11 +141,26 @@ const OrgSwitcher = ({
                     onClick={(e) => e.stopPropagation()}
                     onSelect={(e) => {
                       e.preventDefault();
-                      setinvitingOrg(org);
+                      setInvitingOrg(org);
                     }}
                   >
                     <span>Invite User</span>
                   </DropdownMenuItem>
+
+                  {/* leave org */}
+                  {org.created_by !== user?.id && (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      className="cursor-pointer"
+                      onClick={(e) => e.stopPropagation()}
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        setLeavingOrg(org);
+                      }}
+                    >
+                      <span>Leave</span>
+                    </DropdownMenuItem>
+                  )}
 
                   {/* edit org */}
                   {org.created_by === user?.id && (
@@ -208,7 +225,17 @@ const OrgSwitcher = ({
               org={invitingOrg}
               open={Boolean(invitingOrg)}
               onOpenChange={(open: boolean) => {
-                if (!open) setinvitingOrg(null);
+                if (!open) setInvitingOrg(null);
+              }}
+            />
+          )}
+
+          {leavingOrg && (
+            <LeaveOrgDialog
+              org={leavingOrg}
+              open={Boolean(leavingOrg)}
+              onOpenChange={(open: boolean) => {
+                if (!open) setLeavingOrg(null);
               }}
             />
           )}

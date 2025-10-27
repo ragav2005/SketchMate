@@ -4,6 +4,8 @@ import Rectangle from "./Rectangle";
 import Ellipse from "./Ellipse";
 import Text from "./Text";
 import Note from "./Note";
+import Path from "./Path";
+import { colorToCss } from "@/lib/utils";
 interface Props {
   layer: ClientLayer;
   selectedByUserIds: string[];
@@ -67,7 +69,18 @@ const LayerPreview = memo(
         );
 
       case LayerType.Path:
-      // TODO: Create Path component
+        return (
+          <Path
+            points={layer.points}
+            x={layer.x}
+            y={layer.y}
+            fill={layer.fill ? colorToCss(layer.fill) : "#000"}
+            selectedByUserIds={selectedByUserIds}
+            onPointerDown={(e) => {
+              onLayerPointerDown(e, layer.id);
+            }}
+          />
+        );
 
       default:
         console.warn("Invalid layer type!!");

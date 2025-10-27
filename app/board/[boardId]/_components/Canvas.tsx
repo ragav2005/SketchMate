@@ -13,12 +13,15 @@ import {
   findIntersectingLayersWithRectangle,
   pointerEventToCanvasPoint,
   resizeBounds,
+  penPointsToPathLayer,
+  colorToCss,
 } from "@/lib/utils";
 import { toast } from "sonner";
 import LayerPreview from "./LayerPreview";
 import { dbLayersToClientLayers, layerTypeToString } from "@/lib/layer-utils";
 import { useSelectionBounds } from "@/lib/hooks/useSelectionBounds";
 import SelectionBox from "./SelectionBox";
+import Path from "./Path";
 import {
   Camera,
   CanvasMode,
@@ -33,6 +36,7 @@ import {
   XYWH,
 } from "@/types/canvas";
 import SelectionTools from "./SelectionTools";
+import { useDisableScrollBounce } from "@/lib/hooks/useDisableScrollBounce";
 
 interface Props {
   boardId: string;
@@ -76,6 +80,15 @@ const Canvas = ({ boardId, board }: Props) => {
     g: 249,
     b: 177,
   });
+  const [pencilDraft, setPencilDraft] = useState<number[][]>([]);
+
+  useDisableScrollBounce();
+
+  useEffect(() => {
+    if (canvasState.mode !== CanvasMode.Pencil && pencilDraft.length > 0) {
+      setPencilDraft([]);
+    }
+  }, [canvasState.mode, pencilDraft.length]);
 
   // returns selected layer -helper
   const getSelectedLayers = useCallback(() => {
@@ -141,6 +154,17 @@ const Canvas = ({ boardId, board }: Props) => {
               if (prev.some((l) => l.id === newLayer.id)) {
                 return prev;
               }
+
+              if (newLayer.authorId === user?.id) {
+                const withoutTemp = prev.filter(
+                  (l) => !l.id.startsWith("temp-")
+                );
+                const updated = [...withoutTemp, newLayer];
+                return updated.sort(
+                  (a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0)
+                );
+              }
+
               const updated = [...prev, newLayer];
               return updated.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
             });
@@ -582,23 +606,105 @@ const Canvas = ({ boardId, board }: Props) => {
     [layers, user]
   );
 
-  // todo
   // start drawing
-  const startDrawing = useCallback((point: Point, pressure: number) => {}, []);
+  const startDrawing = useCallback((point: Point, pressure: number) => {
+    setPencilDraft([[point.x, point.y, pressure]]);
+  }, []);
 
-  // todo
   // continue drawing
   const continueDrawing = useCallback(
     (current: Point, e: React.PointerEvent) => {
       if (canvasState.mode !== CanvasMode.Pencil || e.buttons !== 1) return;
+
+      setPencilDraft((prev) => {
+        if (prev.length === 0) {
+          return [[current.x, current.y, e.pressure]];
+        }
+        return [...prev, [current.x, current.y, e.pressure]];
+      });
     },
     [canvasState.mode]
   );
 
   // insert path
-  const inserPath = useCallback(() => {
-    if (layers.length >= MAX_LAYERS) return;
-  }, [layers.length]);
+  const inserPath = useCallback(async () => {
+    if (layers.length >= MAX_LAYERS) {
+      toast.error(
+        `Maximum layers (${MAX_LAYERS}) reached. Delete some layers first.`
+      );
+      setPencilDraft([]);
+      return;
+    }
+
+    if (pencilDraft.length < 2) {
+      setPencilDraft([]);
+      return;
+    }
+
+    if (!user) {
+      setPencilDraft([]);
+      return;
+    }
+
+    try {
+      const partialLayer = penPointsToPathLayer(pencilDraft, lastUsedColor);
+
+      const tempId = `temp-${Date.now()}-${Math.random()}`;
+
+      const tempLayer: ClientLayer = {
+        ...partialLayer,
+        id: tempId,
+        boardId: boardId,
+        authorId: user.id,
+        authorType: "user" as const,
+        type: LayerType.Path,
+        points: partialLayer.points!,
+        zIndex: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } as ClientLayer;
+
+      setLayers((prev) => [...prev, tempLayer]);
+
+      setPencilDraft([]);
+      setCanvasState({ mode: CanvasMode.None });
+
+      // db mutation
+      const { data, error } = await supabase
+        .from("layers")
+        .insert([
+          {
+            board_id: boardId,
+            author_id: user.id,
+            author_type: "user" as const,
+            layer_type: "Path",
+            x: partialLayer.x,
+            y: partialLayer.y,
+            height: partialLayer.height,
+            width: partialLayer.width,
+            fill: lastUsedColor,
+            metadata: { points: partialLayer.points },
+          },
+        ])
+        .select();
+
+      if (error) {
+        console.error("Failed to insert path:", error);
+        toast.error("Failed to save drawing");
+        setLayers((prev) => prev.filter((l) => l.id !== tempId));
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const realLayer = dbLayersToClientLayers([data[0] as DBLayer])[0];
+        setLayers((prev) => prev.map((l) => (l.id === tempId ? realLayer : l)));
+      }
+    } catch (err) {
+      console.error("Failed to insert path:", err);
+      toast.error("Failed to create drawing");
+      setPencilDraft([]);
+    }
+  }, [layers.length, pencilDraft, user, lastUsedColor, boardId, supabase]);
 
   // handle layer selection
   const onLayerPointerDown = useCallback(
@@ -660,6 +766,7 @@ const Canvas = ({ boardId, board }: Props) => {
 
       if (canvasState.mode === CanvasMode.Pencil) {
         startDrawing(point, e.pressure);
+        return;
       }
 
       const target = e.target as SVGElement;
@@ -886,6 +993,18 @@ const Canvas = ({ boardId, board }: Props) => {
                 height={Math.abs(canvasState.origin.y - canvasState.current.y)}
               />
             )}
+
+          {/* Draft path while drawing */}
+          {pencilDraft.length > 0 && canvasState.mode === CanvasMode.Pencil && (
+            <Path
+              x={0}
+              y={0}
+              points={pencilDraft}
+              fill={colorToCss(lastUsedColor)}
+              selectedByUserIds={[]}
+              onPointerDown={() => {}}
+            />
+          )}
 
           <CursorsPresence cursors={cursors} currentUserId={user?.id} />
         </g>
