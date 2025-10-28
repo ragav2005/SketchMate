@@ -219,7 +219,7 @@ const OrgSidebar = ({
   }, [supabase, update_org_rpc, user?.id, organizations]);
 
   return (
-    <div className="hidden lg:flex flex-col space-y-6 w-[206px] pl-5 pt-5">
+    <div className="hidden lg:flex flex-col space-y-6 w-[230px] pl-5 pt-5">
       <Link href="/">
         <Image
           src="/logo.svg"
@@ -227,7 +227,7 @@ const OrgSidebar = ({
           height={60}
           priority
           alt="SketchMate Logo"
-          className="h-auto w-auto hover:scale-[103%] transition"
+          className="h-auto w-auto hover:scale-[103%] transition-transform duration-200"
         />
       </Link>
 

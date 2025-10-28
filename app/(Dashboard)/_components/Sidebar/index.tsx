@@ -4,6 +4,7 @@ import NewOrgButton from "./NewOrgButton";
 import Hint from "@/components/hint";
 import { Organization } from "../../layout";
 import useAuth from "@/lib/hooks/useAuth";
+import { LogOut } from "lucide-react";
 
 interface Props {
   organizations: Organization[];
@@ -12,7 +13,7 @@ interface Props {
 }
 
 const Sidebar = ({ setSelectedOrg, organizations, selectedOrg }: Props) => {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
 
   return (
     <aside className="fixed z-[1] left-0 bg-blue-950 h-full w-[60px] flex flex-col p-3 gap-y-4 text-white">
@@ -34,7 +35,22 @@ const Sidebar = ({ setSelectedOrg, organizations, selectedOrg }: Props) => {
           </div>
         ))}
       <NewOrgButton userId={user?.id} isOrgSidebar={false} />
-      <div className="flex-1"></div>
+
+      {user && (
+        <div className="absolute bottom-4 left-3 right-3">
+          <Hint label="Logout" side="right" align="start">
+            <div className="aspect-square cursor-pointer" onClick={signOut}>
+              <div className=" group bg-white/10 w-full h-full flex items-center justify-center rounded-md opacity-70 hover:opacity-100 hover:bg-red-500/20 transition">
+                <LogOut
+                  className="text-white group-hover:text-red-400"
+                  height={20}
+                  width={20}
+                />
+              </div>
+            </div>
+          </Hint>
+        </div>
+      )}
     </aside>
   );
 };

@@ -1,13 +1,12 @@
 import React, { useState } from "react";
-import Image from "next/image";
 import SearchInput from "./SearchInput";
 import useAuth from "@/lib/hooks/useAuth";
 import OrgSwitcher from "../OrgSidebar/OrgSwitcher";
 import { Organization } from "../../layout";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import InviteDialog from "../OrgSidebar/InviteDialog";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import UserAvatar from "./UserAvatar";
 
 interface Props {
   organizations: Organization[];
@@ -23,15 +22,6 @@ const Navbar = ({
 }: Props) => {
   const { user } = useAuth();
   const [invitingOrg, setinvitingOrg] = useState<Organization | null>(null);
-  const [imageError, setImageError] = useState(false);
-  const fullName = user?.user_metadata?.full_name || "";
-  const avatarUrl = user?.user_metadata?.avatar_url;
-  const initials = fullName
-    .split(" ")
-    .map((n: string) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
 
   return (
     <div className="flex items-center gap-x-4 p-5">
@@ -62,27 +52,9 @@ const Navbar = ({
           Invite Members
         </Button>
       )}
-      <Avatar>
-        {!imageError && avatarUrl && (
-          <Image
-            src={avatarUrl}
-            alt={fullName}
-            width={32}
-            height={32}
-            className="aspect-square size-full rounded-full"
-            unoptimized
-            crossOrigin="anonymous"
-            referrerPolicy="no-referrer"
-            onError={() => {
-              console.log("Avatar failed to load:", avatarUrl);
-              setImageError(true);
-            }}
-          />
-        )}
-        {(imageError || !avatarUrl) && (
-          <AvatarFallback>{initials}</AvatarFallback>
-        )}
-      </Avatar>
+
+      {user?.id && <UserAvatar user={user} />}
+
       {invitingOrg && (
         <InviteDialog
           org={selectedOrg}

@@ -361,8 +361,7 @@ const Canvas = ({ boardId, board }: Props) => {
         await channel.track({
           id: user.id,
           name: user.user_metadata?.full_name || user.user_metadata?.name,
-          avatar_url:
-            user.user_metadata?.avatar_url || user.user_metadata?.picture,
+          avatar_url: user.user_metadata?.avatar_url,
         });
       }
     });

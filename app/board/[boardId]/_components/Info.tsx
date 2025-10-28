@@ -24,7 +24,13 @@ const Info = ({ board }: InfoProps) => {
       <Hint label="Go Home" side="bottom">
         <Link href="/">
           <Button variant="board" className="cursor-pointer">
-            <Image src="/logo.svg" alt="SketchMate" width={120} height={40} />
+            <Image
+              src="/logo.svg"
+              alt="SketchMate"
+              width={120}
+              height={40}
+              priority
+            />
           </Button>
         </Link>
       </Hint>
