@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { Organization } from "../../layout";
+import { Organization } from "../../context";
 import { ChevronsUpDown, EllipsisVertical, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { User } from "@supabase/supabase-js";

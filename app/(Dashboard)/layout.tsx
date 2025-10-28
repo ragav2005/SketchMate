@@ -1,32 +1,11 @@
 "use client";
-import React, {
-  useState,
-  createContext,
-  Dispatch,
-  SetStateAction,
-} from "react";
+import React, { useState } from "react";
 import Sidebar from "./_components/Sidebar";
 import OrgSidebar from "./_components/OrgSidebar";
 import Navbar from "./_components/Navbar";
 import useAuth from "@/lib/hooks/useAuth";
 import AuthLoading from "@/components/AuthLoading";
-
-export interface Organization {
-  id: string;
-  name: string;
-  is_creator: boolean;
-  created_by: string;
-  member_count: number;
-}
-
-export const DashboardContext = createContext<{
-  organizations: Organization[];
-  selectedOrg: Organization | null;
-  loading: boolean;
-  setOrganizations: Dispatch<SetStateAction<Organization[]>>;
-  setSelectedOrg: Dispatch<SetStateAction<Organization | null>>;
-  setLoading: Dispatch<SetStateAction<boolean>>;
-} | null>(null);
+import { DashboardContext, Organization } from "./context";
 
 const DashboardLayout = ({ children }: { children: React.ReactNode }) => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);

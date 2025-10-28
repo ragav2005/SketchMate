@@ -1,7 +1,7 @@
 "use client";
 import React, { use, useContext } from "react";
 import EmptyOrg from "./_components/EmptyOrg";
-import { DashboardContext } from "./layout";
+import { DashboardContext } from "./context";
 import BoardList from "./_components/BoardList";
 import useAuth from "@/lib/hooks/useAuth";
 

@@ -2,7 +2,7 @@
 import React from "react";
 import NewOrgButton from "./NewOrgButton";
 import Hint from "@/components/hint";
-import { Organization } from "../../layout";
+import { Organization } from "../../context";
 import useAuth from "@/lib/hooks/useAuth";
 import { LogOut } from "lucide-react";
 

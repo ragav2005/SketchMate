@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Organization } from "../../layout";
+import { Organization } from "../../context";
 import { DialogDescription } from "@radix-ui/react-dialog";
 
 type Props = {

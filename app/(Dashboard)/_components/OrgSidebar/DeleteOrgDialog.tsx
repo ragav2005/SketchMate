@@ -9,7 +9,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Organization } from "../../layout";
+import { Organization } from "../../context";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 

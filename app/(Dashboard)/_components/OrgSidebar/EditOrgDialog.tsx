@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Organization } from "../../layout";
+import { Organization } from "../../context";
 
 type Props = {
   org: Organization;

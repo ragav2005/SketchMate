@@ -2,7 +2,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import React, { useCallback, useEffect, useRef } from "react";
-import { Organization } from "../../layout";
+import { Organization } from "../../context";
 import OrgSwitcher from "./OrgSwitcher";
 import { Button } from "@/components/ui/button";
 import { LayoutDashboard, Star } from "lucide-react";

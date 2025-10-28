@@ -7,6 +7,7 @@ import { Board as BoardType } from "@/app/(Dashboard)/_components/BoardList";
 import { Loading } from "./_components/loading";
 import { toast } from "sonner";
 import useAuth from "@/lib/hooks/useAuth";
+import AIChat from "./_components/AIChat";
 
 const Board = () => {
   const router = useRouter();
@@ -142,6 +143,7 @@ const Board = () => {
   return (
     <div>
       <Canvas boardId={boardId} board={board} />
+      <AIChat boardId={boardId} />
     </div>
   );
 };

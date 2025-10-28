@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import SearchInput from "./SearchInput";
 import useAuth from "@/lib/hooks/useAuth";
 import OrgSwitcher from "../OrgSidebar/OrgSwitcher";
-import { Organization } from "../../layout";
+import { Organization } from "../../context";
 import InviteDialog from "../OrgSidebar/InviteDialog";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
