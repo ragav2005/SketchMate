@@ -20,6 +20,11 @@ const Dashboard = ({ searchParams }: DashboardProps) => {
 
   const { organizations, selectedOrg, loading } = context;
 
+  const normalizedQuery = {
+    search: query?.search || undefined,
+    favorites: query?.favorites === "true" || query?.favorites === "1",
+  };
+
   if (loading || userLoading) {
     return <LoadingComponent />;
   }
@@ -29,7 +34,7 @@ const Dashboard = ({ searchParams }: DashboardProps) => {
       {!organizations ? (
         <EmptyOrg />
       ) : (
-        <BoardList orgId={selectedOrg?.id} query={query} />
+        <BoardList orgId={selectedOrg?.id} query={normalizedQuery} />
       )}
     </div>
   );

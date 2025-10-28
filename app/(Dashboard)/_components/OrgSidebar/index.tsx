@@ -6,7 +6,7 @@ import { Organization } from "../../context";
 import OrgSwitcher from "./OrgSwitcher";
 import { Button } from "@/components/ui/button";
 import { LayoutDashboard, Star } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import useAuth from "@/lib/hooks/useAuth";
 import { createClient } from "@/lib/supabase/client";
 
@@ -28,8 +28,9 @@ const OrgSidebar = ({
   setLoading,
 }: OrgSidebarProps) => {
   const supabase = createClient();
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const favorites = searchParams.get("favorites");
+  const favorites = searchParams.get("favorites") === "true";
   const { user } = useAuth();
 
   const memberOrgMapRef = useRef<Record<string, string>>({});
@@ -218,6 +219,14 @@ const OrgSidebar = ({
     };
   }, [supabase, update_org_rpc, user?.id, organizations]);
 
+  const handleTeamBoardsClick = () => {
+    router.push("/");
+  };
+
+  const handleFavoriteBoardsClick = () => {
+    router.push("/?favorites=true");
+  };
+
   return (
     <div className="hidden lg:flex flex-col space-y-6 w-[230px] pl-5 pt-5">
       <Link href="/">
@@ -242,31 +251,22 @@ const OrgSidebar = ({
 
       <div className="space-y-1 w-full">
         <Button
-          asChild
+          onClick={handleTeamBoardsClick}
           variant={!favorites ? "secondary" : "ghost"}
           size="lg"
-          className="font-normal justify-start px-2 w-full"
+          className="font-normal justify-start px-2 w-full cursor-pointer"
         >
-          <Link href="/">
-            <LayoutDashboard className="h-4 w-4 mr-2" />
-            Team Boards
-          </Link>
+          <LayoutDashboard className="h-4 w-4 mr-2" />
+          Team Boards
         </Button>
         <Button
-          asChild
+          onClick={handleFavoriteBoardsClick}
           variant={favorites ? "secondary" : "ghost"}
           size="lg"
-          className="font-normal justify-start px-2 w-full"
+          className="font-normal justify-start px-2 w-full cursor-pointer"
         >
-          <Link
-            href={{
-              pathname: "/",
-              query: { favorites: true },
-            }}
-          >
-            <Star className="h-4 w-4 mr-2" />
-            Favorite Boards
-          </Link>
+          <Star className="h-4 w-4 mr-2" />
+          Favorite Boards
         </Button>
       </div>
     </div>

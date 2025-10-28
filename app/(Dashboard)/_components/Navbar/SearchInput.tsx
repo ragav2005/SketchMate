@@ -2,12 +2,13 @@ import React from "react";
 import qs from "query-string";
 import { useDebounceValue } from "usehooks-ts";
 import { Search } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { useEffect, useState, ChangeEvent } from "react";
 
 const SearchInput = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [value, setValue] = useState<string>("");
   const [debouncedValue] = useDebounceValue<string>(value, 500);
 
@@ -16,15 +17,24 @@ const SearchInput = () => {
   };
 
   useEffect(() => {
+    const favorites = searchParams.get("favorites");
+    const query: Record<string, string> = {
+      search: debouncedValue,
+    };
+
+    if (favorites === "true") {
+      query.favorites = "true";
+    }
+
     const url = qs.stringifyUrl(
       {
         url: "/",
-        query: { search: debouncedValue },
+        query,
       },
       { skipEmptyString: true, skipNull: true }
     );
     router.push(url);
-  }, [debouncedValue, router]);
+  }, [debouncedValue, router, searchParams]);
 
   return (
     <div className="w-full relative">

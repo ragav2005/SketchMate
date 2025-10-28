@@ -11,8 +11,8 @@ import NewBoardButton from "./EmptySates/NewBoardButton";
 interface BoardListProps {
   orgId: string | undefined;
   query: {
-    search?: string | undefined;
-    favorites?: string | undefined;
+    search?: string;
+    favorites?: boolean;
   };
 }
 
@@ -58,11 +58,10 @@ const BoardList = ({ orgId, query }: BoardListProps) => {
       if (query.favorites) {
         const favoriteIdsList = Array.from(favoriteIds);
         if (favoriteIdsList.length === 0) {
-          setBoards([]);
           setLoading(false);
+          setBoards([]);
           return;
         }
-
         boardsQuery = boardsQuery.in("id", favoriteIdsList);
       } else if (query.search) {
         boardsQuery = boardsQuery.ilike("title", `%${query.search}%`);
